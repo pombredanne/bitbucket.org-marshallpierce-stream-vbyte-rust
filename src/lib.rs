@@ -3,7 +3,7 @@
 extern crate byteorder;
 
 use std::cmp;
-use byteorder::{ByteOrder, BigEndian};
+use byteorder::{ByteOrder, BigEndian, LittleEndian};
 
 mod tables;
 
@@ -24,9 +24,9 @@ pub trait Decoder {
 
 /// Regular ol' byte shuffling.
 /// Works on every platform, but it's not the quickest.
-pub struct GenericCodec;
+pub struct Scalar;
 
-impl Encoder for GenericCodec {
+impl Encoder for Scalar {
     fn encode_quads(input: &[u32], control_bytes: &mut [u8], encoded_nums: &mut [u8]) -> usize {
         let mut bytes_written = 0;
         let mut nums_encoded = 0;
@@ -43,7 +43,7 @@ impl Encoder for GenericCodec {
             let len3 = encode_num(num3, &mut encoded_nums[bytes_written + len0 + len1 + len2..]);
 
             // this is a few percent faster in my testing than using control_bytes.iter_mut()
-            control_bytes[quads_encoded] = ((len0 - 1) << 6 | (len1 - 1) << 4 | (len2 - 1) << 2 | (len3 - 1)) as u8;
+            control_bytes[quads_encoded] = ((len0 - 1) | (len1 - 1) << 2 | (len2 - 1) << 4 | (len3 - 1) << 6) as u8;
 
             bytes_written += len0 + len1 + len2 + len3;
             nums_encoded += 4;
@@ -53,7 +53,7 @@ impl Encoder for GenericCodec {
     }
 }
 
-impl Decoder for GenericCodec {
+impl Decoder for Scalar {
     fn decode_quads(control_bytes: &[u8], encoded_nums: &[u8], output: &mut [u32]) -> usize {
         let mut bytes_read = 0;
         let mut nums_decoded = 0;
@@ -156,11 +156,10 @@ fn encode_num(num: u32, output: &mut [u8]) -> usize {
     // this will calculate 0_u32 as taking 0 bytes, so ensure at least 1 byte
     let len = cmp::max(1_usize, 4 - num.leading_zeros() as usize / 8);
     let mut buf = [0_u8; 4];
-    BigEndian::write_u32(&mut buf, num);
-    let start_index_in_buf = 4 - len;
+    LittleEndian::write_u32(&mut buf, num);
 
     for i in 0..len {
-        output[i] = buf[start_index_in_buf + i];
+        output[i] = buf[i];
     }
 
     len

@@ -64,7 +64,7 @@ fn do_encode_bench<I: Iterator<Item=u32>>(b: &mut Bencher, iter: I) {
     encoded.resize(nums.len() * 5, 0);
 
     b.iter(|| {
-        let _ = stream_vbyte::encode::<GenericCodec>(&nums, &mut encoded);
+        let _ = stream_vbyte::encode::<Scalar>(&nums, &mut encoded);
     });
 }
 
@@ -78,11 +78,11 @@ fn do_decode_bench<I: Iterator<Item=u32>>(b: &mut Bencher, iter: I) {
     }
 
     encoded.resize(nums.len() * 5, 0);
-    let bytes_written = stream_vbyte::encode::<GenericCodec>(&nums, &mut encoded);
+    let bytes_written = stream_vbyte::encode::<Scalar>(&nums, &mut encoded);
 
     decoded.resize(nums.len(), 0);
     b.iter(|| {
-        stream_vbyte::decode::<GenericCodec>(&encoded[0..bytes_written], nums.len(), &mut decoded);
+        stream_vbyte::decode::<Scalar>(&encoded[0..bytes_written], nums.len(), &mut decoded);
     });
 }
 

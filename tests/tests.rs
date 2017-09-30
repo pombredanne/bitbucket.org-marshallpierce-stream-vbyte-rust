@@ -1,6 +1,9 @@
 extern crate stream_vbyte;
 extern crate rand;
 
+use std::fs::File;
+use std::io::{Read, Write};
+
 use self::rand::Rng;
 use self::rand::distributions::{IndependentSample, Range};
 
@@ -25,11 +28,11 @@ fn random_roundtrip() {
 
         encoded.resize(count * 5, 0);
 
-        let bytes_written = stream_vbyte::encode::<GenericCodec>(&nums, &mut encoded);
+        let bytes_written = encode::<Scalar>(&nums, &mut encoded);
 
         decoded.resize(count, 0);
 
-        assert_eq!(bytes_written, stream_vbyte::decode::<GenericCodec>(&encoded[0..bytes_written], count, &mut decoded));
+        assert_eq!(bytes_written, decode::<Scalar>(&encoded[0..bytes_written], count, &mut decoded));
 
         assert_eq!(nums, decoded);
     }
@@ -56,15 +59,32 @@ fn all_zeros() {
             nums.push(0);
         }
 
-        assert_eq!(encoded_len, stream_vbyte::encode::<GenericCodec>(&nums, &mut encoded));
+        assert_eq!(encoded_len, encode::<Scalar>(&nums, &mut encoded));
         for (i, &b) in encoded[0..encoded_len].iter().enumerate() {
             assert_eq!(0, b, "index {}", i);
         }
 
-        assert_eq!(encoded_len, stream_vbyte::decode::<GenericCodec>(&encoded[0..encoded_len], count, &mut decoded));
+        assert_eq!(encoded_len, decode::<Scalar>(&encoded[0..encoded_len], count, &mut decoded));
 
         assert_eq!(nums, decoded);
     }
+}
+
+#[test]
+fn compare_reference_impl() {
+    let ref_nums: Vec<u32> = (0..5000).map(|x| x * 100).collect();
+    let mut ref_data = Vec::new();
+    File::open("tests/data/data.bin").unwrap().read_to_end(&mut ref_data).unwrap();
+    let ref_data = ref_data;
+
+    let mut rust_encoded_data = Vec::new();
+    rust_encoded_data.resize(ref_nums.len() * 5, 0);
+    let bytes_written = encode::<Scalar>(&ref_nums, &mut rust_encoded_data);
+    rust_encoded_data.truncate(bytes_written);
+    File::create("tests/data/rust-data.bin").unwrap().write_all(&rust_encoded_data).unwrap();
+
+    assert_eq!(ref_data.len(), bytes_written);
+    assert_eq!(ref_data, rust_encoded_data);
 }
 
 // Evenly distributed random numbers end up biased heavily towards longer encoded byte lengths:
