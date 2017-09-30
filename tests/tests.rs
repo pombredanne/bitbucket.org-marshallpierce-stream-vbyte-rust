@@ -44,15 +44,24 @@ fn do_random_roundtrip<E: Encoder, D: Decoder>() {
             nums.push(i);
         }
 
-        encoded.resize(count * 5, 0xFF);
+        // make the vecs a little oversized so we can tell if something clobbers them
+        let extra_slots = 1000;
+        encoded.resize(count * 5 + extra_slots, 0xFF);
+        decoded.resize(count + extra_slots, 0xFF);
 
-        let bytes_written = encode::<E>(&nums, &mut encoded);
+        let encoded_len = encode::<E>(&nums, &mut encoded);
+        // extra bytes in encoded were not touched
+        for (i, &b) in encoded[encoded_len..(encoded_len + extra_slots)].iter().enumerate() {
+            assert_eq!(0xFF, b, "index {}", i);
+        }
 
-        decoded.resize(count, 0xFF);
+        assert_eq!(encoded_len, decode::<D>(&encoded[0..encoded_len], count, &mut decoded));
+        // extra u32s in decoded were not touched
+        for (i, &n) in decoded[count..(count + extra_slots)].iter().enumerate() {
+            assert_eq!(0xFF, n, "index {}", i);
+        }
 
-        assert_eq!(bytes_written, decode::<D>(&encoded[0..bytes_written], count, &mut decoded));
-
-        assert_eq!(nums, decoded);
+        assert_eq!(&nums[..], &decoded[0..count]);
     }
 }
 
@@ -67,8 +76,10 @@ fn do_all_zeros<E: Encoder, D: Decoder>() {
         // 1 byte for each number, + 1 control byte for every 4 zeroes
         let encoded_len = count + (count + 3) / 4;
 
-        encoded.resize(encoded_len, 0xFF);
-        decoded.resize(count, 0xFF);
+        // make the vecs a little oversized so we can tell if something clobbers them
+        let extra_slots = 1000;
+        encoded.resize(encoded_len + extra_slots, 0xFF);
+        decoded.resize(count + extra_slots, 0xFF);
 
         println!("count {}", count);
 
@@ -80,10 +91,18 @@ fn do_all_zeros<E: Encoder, D: Decoder>() {
         for (i, &b) in encoded[0..encoded_len].iter().enumerate() {
             assert_eq!(0, b, "index {}", i);
         }
+        // extra bytes in encoded were not touched
+        for (i, &b) in encoded[encoded_len..(encoded_len + extra_slots)].iter().enumerate() {
+            assert_eq!(0xFF, b, "index {}", i);
+        }
 
         assert_eq!(encoded_len, decode::<D>(&encoded[0..encoded_len], count, &mut decoded));
+        // extra u32s in decoded were not touched
+        for (i, &n) in decoded[count..(count + extra_slots)].iter().enumerate() {
+            assert_eq!(0xFF, n, "index {}", i);
+        }
 
-        assert_eq!(nums, decoded);
+        assert_eq!(&nums[..], &decoded[0..count]);
     }
 }
 

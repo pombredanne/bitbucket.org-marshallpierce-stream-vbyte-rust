@@ -21,32 +21,17 @@ impl super::Decoder for Ssse3 {
             let mask;
             let data;
             unsafe {
-                // TODO can I load mask with mm_load_si128? Will it always be 16-byte aligned?
+                // TODO load mask unaligned once https://github.com/rust-lang/rust/issues/33626
+                // hits stable
                 mask = sse2::mm_loadu_si128(mask_bytes.as_ptr() as *const m128i);
                 data = sse2::mm_loadu_si128(next_4.as_ptr() as *const m128i);
             }
 
-            let shuffled = ssse3::mm_shuffle_epi8(data, mask).as_u32x4();
+            let shuffled = ssse3::mm_shuffle_epi8(data, mask);
 
-            output[nums_decoded] = shuffled.extract(0);
-            output[nums_decoded + 1] = shuffled.extract(1);
-            output[nums_decoded + 2] = shuffled.extract(2);
-            output[nums_decoded + 3] = shuffled.extract(3);
-
-
-//            println!("control byte {:08b}\n\tmask {}\n\tdata {}\n\tout  {}",
-//                     control_byte,
-//                     mask_bytes.iter().map(|b| format!("{:02X}", b))
-//                             .collect::<Vec<String>>()
-//                             .join(" "),
-//                     next_4.iter().map(|b| format!("{:02X}", b))
-//                             .collect::<Vec<String>>()
-//                             .join(" "),
-//                     output[nums_decoded..(nums_decoded + 16)].iter()
-//                             .map(|b| format!("{:08X}", b))
-//                             .collect::<Vec<String>>()
-//                             .join(" ")
-//            );
+            unsafe {
+                sse2::mm_storeu_si128(output[nums_decoded..(nums_decoded + 16)].as_ptr() as *mut m128i, shuffled);
+            }
 
             bytes_read += length as usize;
             nums_decoded += 4;
