@@ -167,8 +167,9 @@ fn encode_num(num: u32, output: &mut [u8]) -> usize {
 }
 
 fn decode_num(len: usize, input: &[u8]) -> u32 {
-    let mut num: u32 = 0;
-    for &b in input[0..len].iter() {
+    let mut num: u32 = input[0] as u32;
+    
+    for &b in input[1..len].iter() {
         num <<= 8;
         num |= b as u32;
     }
