@@ -4,6 +4,8 @@ extern crate rand;
 use self::rand::Rng;
 use self::rand::distributions::{IndependentSample, Range};
 
+use stream_vbyte::*;
+
 #[test]
 fn random_roundtrip() {
     let mut nums: Vec<u32> = Vec::new();
@@ -23,11 +25,11 @@ fn random_roundtrip() {
 
         encoded.resize(count * 5, 0);
 
-        let bytes_written = stream_vbyte::encode(&nums, &mut encoded);
+        let bytes_written = stream_vbyte::encode::<GenericCodec>(&nums, &mut encoded);
 
         decoded.resize(count, 0);
 
-        assert_eq!(bytes_written, stream_vbyte::decode(&encoded[0..bytes_written], count, &mut decoded));
+        assert_eq!(bytes_written, stream_vbyte::decode::<GenericCodec>(&encoded[0..bytes_written], count, &mut decoded));
 
         assert_eq!(nums, decoded);
     }
@@ -54,12 +56,12 @@ fn all_zeros() {
             nums.push(0);
         }
 
-        assert_eq!(encoded_len, stream_vbyte::encode(&nums, &mut encoded));
+        assert_eq!(encoded_len, stream_vbyte::encode::<GenericCodec>(&nums, &mut encoded));
         for (i, &b) in encoded[0..encoded_len].iter().enumerate() {
             assert_eq!(0, b, "index {}", i);
         }
 
-        assert_eq!(encoded_len, stream_vbyte::decode(&encoded[0..encoded_len], count, &mut decoded));
+        assert_eq!(encoded_len, stream_vbyte::decode::<GenericCodec>(&encoded[0..encoded_len], count, &mut decoded));
 
         assert_eq!(nums, decoded);
     }

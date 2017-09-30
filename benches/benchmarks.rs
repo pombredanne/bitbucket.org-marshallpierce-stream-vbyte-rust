@@ -11,6 +11,8 @@ use self::rand::distributions::{IndependentSample, Range};
 
 use std::iter;
 
+use stream_vbyte::*;
+
 #[bench]
 fn encode_rand_1kib(b: &mut Bencher) {
     do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1024));
@@ -62,7 +64,7 @@ fn do_encode_bench<I: Iterator<Item=u32>>(b: &mut Bencher, iter: I) {
     encoded.resize(nums.len() * 5, 0);
 
     b.iter(|| {
-        let _ = stream_vbyte::encode(&nums, &mut encoded);
+        let _ = stream_vbyte::encode::<GenericCodec>(&nums, &mut encoded);
     });
 }
 
@@ -76,11 +78,11 @@ fn do_decode_bench<I: Iterator<Item=u32>>(b: &mut Bencher, iter: I) {
     }
 
     encoded.resize(nums.len() * 5, 0);
-    let bytes_written = stream_vbyte::encode(&nums, &mut encoded);
+    let bytes_written = stream_vbyte::encode::<GenericCodec>(&nums, &mut encoded);
 
     decoded.resize(nums.len(), 0);
     b.iter(|| {
-        stream_vbyte::decode(&encoded[0..bytes_written], nums.len(), &mut decoded);
+        stream_vbyte::decode::<GenericCodec>(&encoded[0..bytes_written], nums.len(), &mut decoded);
     });
 }
 
