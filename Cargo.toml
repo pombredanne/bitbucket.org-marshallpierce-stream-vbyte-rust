@@ -1,0 +1,20 @@
+[package]
+name = "stream-vbyte"
+version = "0.1.0"
+authors = ["Marshall Pierce <marshall@mpierce.org>"]
+homepage = "https://bitbucket.org/marshallpierce/stream-vbyte-rust"
+repository = "https://bitbucket.org/marshallpierce/stream-vbyte-rust"
+readme = 'README.md'
+keywords = ["varint", "stream-vbyte"]
+categories = ["encoding"]
+license-file = "LICENSE.txt"
+
+[dependencies]
+byteorder = "1.1.0"
+
+[dev-dependencies]
+rand = "0.3.16"
+
+[profile.bench]
+# Useful for better disassembly when using `perf record` and `perf annotate`
+debug = true
