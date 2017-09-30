@@ -7,7 +7,28 @@ use self::rand::distributions::{IndependentSample, Range};
 use stream_vbyte::*;
 
 #[test]
-fn random_roundtrip() {
+fn random_roundtrip_scalar_scalar() {
+    do_random_roundtrip::<Scalar, Scalar>();
+}
+
+#[cfg(feature = "x86_ssse3")]
+#[test]
+fn random_roundtrip_scalar_ssse3() {
+    do_random_roundtrip::<Scalar, x86::Ssse3>();
+}
+
+#[test]
+fn all_zeros_scalar_scalar() {
+    do_all_zeros::<Scalar, Scalar>();
+}
+
+#[cfg(feature = "x86_ssse3")]
+#[test]
+fn all_zeros_scalar_ssse3() {
+    do_all_zeros::<Scalar, x86::Ssse3>();
+}
+
+fn do_random_roundtrip<E: Encoder, D: Decoder>() {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -23,20 +44,19 @@ fn random_roundtrip() {
             nums.push(i);
         }
 
-        encoded.resize(count * 5, 0);
+        encoded.resize(count * 5, 0xFF);
 
-        let bytes_written = stream_vbyte::encode::<GenericCodec>(&nums, &mut encoded);
+        let bytes_written = encode::<E>(&nums, &mut encoded);
 
-        decoded.resize(count, 0);
+        decoded.resize(count, 0xFF);
 
-        assert_eq!(bytes_written, stream_vbyte::decode::<GenericCodec>(&encoded[0..bytes_written], count, &mut decoded));
+        assert_eq!(bytes_written, decode::<D>(&encoded[0..bytes_written], count, &mut decoded));
 
         assert_eq!(nums, decoded);
     }
 }
 
-#[test]
-fn all_zeros() {
+fn do_all_zeros<E: Encoder, D: Decoder>() {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -56,12 +76,12 @@ fn all_zeros() {
             nums.push(0);
         }
 
-        assert_eq!(encoded_len, stream_vbyte::encode::<GenericCodec>(&nums, &mut encoded));
+        assert_eq!(encoded_len, encode::<E>(&nums, &mut encoded));
         for (i, &b) in encoded[0..encoded_len].iter().enumerate() {
             assert_eq!(0, b, "index {}", i);
         }
 
-        assert_eq!(encoded_len, stream_vbyte::decode::<GenericCodec>(&encoded[0..encoded_len], count, &mut decoded));
+        assert_eq!(encoded_len, decode::<D>(&encoded[0..encoded_len], count, &mut decoded));
 
         assert_eq!(nums, decoded);
     }
