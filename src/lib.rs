@@ -1,3 +1,5 @@
+//! Encode and decode `u32`s with the Stream VByte format.
+
 extern crate byteorder;
 
 use std::cmp;
@@ -5,6 +7,9 @@ use byteorder::{ByteOrder, BigEndian};
 
 mod tables;
 
+/// Encode the input slice into the output slice. The worst-case encoded length is 4 bytes per `u32`
+/// plus another byte for every 4 `u32`s, including a trailing partial 4-some.
+/// Returns the number of bytes written to the `output` slice.
 pub fn encode(input: &[u32], output: &mut [u8]) -> usize {
     if input.len() == 0 {
         return 0;
@@ -57,6 +62,9 @@ pub fn encode(input: &[u32], output: &mut [u8]) -> usize {
     control_bytes.len() + num_bytes_written
 }
 
+/// Decode `count` numbers from `input`, appending them to `output`. The `count` must be the same
+/// as the number of items originally encoded.
+/// Returns the number of bytes read from `input`.
 pub fn decode(input: &[u8], count: usize, output: &mut [u32]) -> usize {
     // 4 numbers to decode per control byte
     let complete_quads = count / 4;
