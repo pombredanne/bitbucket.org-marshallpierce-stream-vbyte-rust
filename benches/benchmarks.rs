@@ -14,66 +14,66 @@ use std::iter;
 use stream_vbyte::*;
 
 #[bench]
-fn encode_rand_1kib(b: &mut Bencher) {
+fn encode_rand_1k(b: &mut Bencher) {
     do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1024));
 }
 
 #[bench]
-fn encode_rand_1mib(b: &mut Bencher) {
+fn encode_rand_1m(b: &mut Bencher) {
     do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1024 * 1024));
 }
 
 #[bench]
-fn encode_zeros_1kib(b: &mut Bencher) {
+fn encode_zeros_1k(b: &mut Bencher) {
     do_encode_bench(b, iter::repeat(0).take(1024));
 }
 
 #[bench]
-fn encode_zeros_1mib(b: &mut Bencher) {
+fn encode_zeros_1m(b: &mut Bencher) {
     do_encode_bench(b, iter::repeat(0).take(1024 * 1024));
 }
 
 #[bench]
-fn decode_scalar_rand_1kib(b: &mut Bencher) {
+fn decode_scalar_rand_1k(b: &mut Bencher) {
     do_decode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1024), Scalar);
 }
 
 #[cfg(feature = "x86_ssse3")]
 #[bench]
-fn decode_ssse3_rand_1kib(b: &mut Bencher) {
+fn decode_ssse3_rand_1k(b: &mut Bencher) {
     do_decode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1024), x86::Ssse3);
 }
 
 #[bench]
-fn decode_scalar_rand_1mib(b: &mut Bencher) {
+fn decode_scalar_rand_1m(b: &mut Bencher) {
     do_decode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1024 * 1024), Scalar);
 }
 
 #[cfg(feature = "x86_ssse3")]
 #[bench]
-fn decode_ssse3_rand_1mib(b: &mut Bencher) {
+fn decode_ssse3_rand_1m(b: &mut Bencher) {
     do_decode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1024 * 1024), x86::Ssse3);
 }
 
 #[bench]
-fn decode_scalar_zeros_1kib(b: &mut Bencher) {
+fn decode_scalar_zeros_1k(b: &mut Bencher) {
     do_decode_bench(b, iter::repeat(0).take(1024), Scalar);
 }
 
 #[cfg(feature = "x86_ssse3")]
 #[bench]
-fn decode_ssse3_zeros_1kib(b: &mut Bencher) {
+fn decode_ssse3_zeros_1k(b: &mut Bencher) {
     do_decode_bench(b, iter::repeat(0).take(1024), x86::Ssse3);
 }
 
 #[bench]
-fn decode_scalar_zeros_1mib(b: &mut Bencher) {
+fn decode_scalar_zeros_1m(b: &mut Bencher) {
     do_decode_bench(b, iter::repeat(0).take(1024 * 1024), Scalar);
 }
 
 #[cfg(feature = "x86_ssse3")]
 #[bench]
-fn decode_ssse3_zeros_1mib(b: &mut Bencher) {
+fn decode_ssse3_zeros_1m(b: &mut Bencher) {
     do_decode_bench(b, iter::repeat(0).take(1024 * 1024), x86::Ssse3);
 }
 
