@@ -1,4 +1,4 @@
-pub const SCALAR_DECODE_TABLE: &'static [(u8, u8, u8, u8)] = &[
+pub const SCALAR_DECODE_TABLE: &'static [(u8, u8, u8, u8); 256] = &[
     (1, 1, 1, 1), // 0 = 0x0 = 0b00000000, lengths 1 1 1 1
     (1, 1, 1, 2), // 1 = 0x1 = 0b00000001, lengths 1 1 1 2
     (1, 1, 1, 3), // 2 = 0x2 = 0b00000010, lengths 1 1 1 3
@@ -258,7 +258,7 @@ pub const SCALAR_DECODE_TABLE: &'static [(u8, u8, u8, u8)] = &[
 ];
 
 #[cfg(feature = "x86_ssse3")]
-pub const X86_SSSE3_DECODE_LENGTH_TABLE: &'static [u8] = &[
+pub const X86_SSSE3_DECODE_LENGTH_TABLE: &'static [u8; 256] = &[
     4, // 0 = 0x0 = 0b00000000, lengths 1 1 1 1
     5, // 1 = 0x1 = 0b00000001, lengths 1 1 1 2
     6, // 2 = 0x2 = 0b00000010, lengths 1 1 1 3
@@ -518,7 +518,7 @@ pub const X86_SSSE3_DECODE_LENGTH_TABLE: &'static [u8] = &[
 ];
 
 #[cfg(feature = "x86_ssse3")]
-pub const X86_SSSE3_DECODE_SHUFFLE_TABLE: &'static [[u8; 16]] = &[
+pub const X86_SSSE3_DECODE_SHUFFLE_TABLE: &'static [[u8; 16]; 256] = &[
     [   0,  128,  128,  128,    1,  128,  128,  128,    2,  128,  128,  128,    3,  128,  128,  128], // 0 = 0x0 = 0b00000000, lengths 1 1 1 1
     [   0,  128,  128,  128,    1,  128,  128,  128,    2,  128,  128,  128,    4,    3,  128,  128], // 1 = 0x1 = 0b00000001, lengths 1 1 1 2
     [   0,  128,  128,  128,    1,  128,  128,  128,    2,  128,  128,  128,    5,    4,    3,  128], // 2 = 0x2 = 0b00000010, lengths 1 1 1 3

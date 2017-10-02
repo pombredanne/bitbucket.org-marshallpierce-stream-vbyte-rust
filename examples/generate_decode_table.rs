@@ -2,7 +2,7 @@ fn main() {
     // Scalar tables
 
     // map control bytes to encoded num lengths
-    println!("pub const SCALAR_DECODE_TABLE: &'static [(u8, u8, u8, u8)] = &[");
+    println!("pub const SCALAR_DECODE_TABLE: &'static [(u8, u8, u8, u8); 256] = &[");
 
     // work around lack of closed ranges until that hits stable rust
     for b in 0..256 {
@@ -23,7 +23,7 @@ fn main() {
     // SSSE3 tables
 
     println!("#[cfg(feature = \"x86_ssse3\")]");
-    println!("pub const X86_SSSE3_DECODE_LENGTH_TABLE: &'static [u8] = &[");
+    println!("pub const X86_SSSE3_DECODE_LENGTH_TABLE: &'static [u8; 256] = &[");
 
     for b in 0..256 {
         let byte = b as u8;
@@ -42,7 +42,7 @@ fn main() {
 
     // don't warn if SSSE3 is disabled
     println!("#[cfg(feature = \"x86_ssse3\")]");
-    println!("pub const X86_SSSE3_DECODE_SHUFFLE_TABLE: &'static [[u8; 16]] = &[");
+    println!("pub const X86_SSSE3_DECODE_SHUFFLE_TABLE: &'static [[u8; 16]; 256] = &[");
 
     for b in 0..256 {
         let byte = b as u8;
@@ -66,7 +66,7 @@ fn main() {
                          .collect::<Vec<String>>()
                          .join(", "),
                  byte, byte, byte, len0, len1, len2, len3);
-    };
+    }
 
     println!("];");
 }
