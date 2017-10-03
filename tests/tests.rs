@@ -18,13 +18,13 @@ fn random_roundtrip_scalar_ssse3() {
 }
 
 #[test]
-fn all_zeros_scalar_scalar() {
+fn all_same_single_byte_scalar_scalar() {
     do_all_same_single_byte::<Scalar, Scalar>();
 }
 
 #[cfg(feature = "x86_ssse3")]
 #[test]
-fn all_zeros_scalar_ssse3() {
+fn all_same_single_byte_scalar_ssse3() {
     do_all_same_single_byte::<Scalar, x86::Ssse3>();
 }
 
