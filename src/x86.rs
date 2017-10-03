@@ -4,6 +4,7 @@ use super::tables;
 
 use self::x86intrin::{sse2, ssse3, m128i};
 
+/// Decoder using SSSE3 instructions.
 pub struct Ssse3;
 
 impl super::Decoder for Ssse3 {

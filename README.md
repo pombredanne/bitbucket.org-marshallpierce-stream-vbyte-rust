@@ -9,10 +9,12 @@ See https://lemire.me/blog/2017/09/27/stream-vbyte-breaking-new-speed-records-fo
 
 # Using SIMD
 
-Currently, SIMD support relies on nightly-only features.
+There is one SIMD-accelerated `Decoder` implementation: `x86::Ssse3`, available when you enable the `x86_ssse3` feature for this crate. [SSSE3](https://en.wikipedia.org/wiki/SSSE3) has been around since Core-era Intel CPUs, so any modern `x86_64` system should have it. Unless you're writing a service for specific hardware that you know has the feature, you may need to do some runtime detection and decide at runtime whether or not to use the SSSE3 decoder. Something like [raw-cpuid](https://crates.io/crates/raw-cpuid) will probably be useful for that.
+
+Currently, SIMD support relies on nightly-only rust features. You'll also need to add some compiler flags, namely:
 
 ```
-RUSTFLAGS='-C target-feature=+ssse3' rustup run nightly cargo test
+RUSTFLAGS='-C target-feature=+ssse3'
 ```
 
 # Maintainers

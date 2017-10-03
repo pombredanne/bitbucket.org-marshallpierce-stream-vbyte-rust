@@ -1,5 +1,26 @@
 //! Encode and decode `u32`s with the Stream VByte format.
-
+//!
+//! ```
+//! use stream_vbyte::*;
+//!
+//! let nums: Vec<u32> = (0..12345).collect();
+//! let mut encoded_data = Vec::new();
+//! // make some space to encode into
+//! encoded_data.resize(5 * nums.len(), 0x0);
+//!
+//! // use Scalar implementation that works on any hardware
+//! let encoded_len = encode::<Scalar>(&nums, &mut encoded_data);
+//! println!("Encoded {} u32s into {} bytes", nums.len(), encoded_len);
+//!
+//! let mut decoded_nums = Vec::new();
+//! decoded_nums.resize(nums.len(), 0);
+//! // now decode
+//! decode::<Scalar>(&encoded_data, nums.len(), &mut decoded_nums);
+//!
+//! assert_eq!(nums, decoded_nums);
+//!
+//! ```
+//!
 extern crate byteorder;
 
 use std::cmp;
