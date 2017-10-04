@@ -2,7 +2,7 @@ extern crate stream_vbyte;
 extern crate rand;
 
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Read;
 
 use self::rand::Rng;
 use self::rand::distributions::{IndependentSample, Range};
@@ -162,7 +162,6 @@ fn encode_compare_reference_impl() {
     rust_encoded_data.resize(ref_nums.len() * 5, 0);
     let bytes_written = encode::<Scalar>(&ref_nums, &mut rust_encoded_data);
     rust_encoded_data.truncate(bytes_written);
-    File::create("tests/data/rust-data.bin").unwrap().write_all(&rust_encoded_data).unwrap();
 
     assert_eq!(ref_data.len(), bytes_written);
     assert_eq!(ref_data, rust_encoded_data);
