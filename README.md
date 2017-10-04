@@ -13,7 +13,7 @@ There's a `cli.rs` example provided that demonstrates encoding and decoding.
 
 To encode some numbers, provide numbers (one per line) to stdin, and the encoded result will be written to stdout.
 
-Example using `jot` to produce the numbes `1` to `100`: `jot 100 | cargo run --example cli enc | base64`
+Example using `jot` to produce the numbes `1` to `100`: `jot 100 | cargo run --example cli -- enc | base64`
 
 Output, with cargo build output removed (the "Encoded ..." is on stderr for human convenience):
 
@@ -24,7 +24,7 @@ ISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZ
 WltcXV5fYGFiY2Q=
 ```
 
-There's a corresponding decode mode that reads the encoded format on stdin and emits the contents, one number per line. Here, we encode some numbers then decode them again: `jot 10 | cargo run --example cli enc | cargo run --example cli dec 10`
+There's a corresponding decode mode that reads the encoded format on stdin and emits the contents, one number per line. Here, we encode some numbers then decode them again: `jot 10 | cargo run --example cli -- enc | cargo run --example cli -- dec -c 10`
 
 ```
 Encoded 10 numbers
@@ -63,11 +63,11 @@ cargo run --example generate_decode_table > tmp/tables.rs && mv tmp/tables.rs sr
 To run the tests:
 
 ```
-RUSTFLAGS='-C target-feature=+ssse3' rustup run nightly cargo test --features x86_ssse3
+RUSTFLAGS='-C target-feature=+ssse3' cargo +nightly test --features x86_ssse3
 ```
 
 To run the benchmarks:
 
 ```
-RUSTFLAGS='-C target-feature=+ssse3' rustup run nightly cargo bench --features x86_ssse3
+RUSTFLAGS='-C target-feature=+ssse3' cargo +nightly bench --features x86_ssse3
 ```
