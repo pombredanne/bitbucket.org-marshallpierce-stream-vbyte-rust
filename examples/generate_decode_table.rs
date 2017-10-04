@@ -45,10 +45,10 @@ fn main() {
 
         // map encoded numbers to 4 adjacent big-endian u32s
         let mut shuffle_bytes = Vec::new();
-        push_shuffle_bytes(0, len0, &mut shuffle_bytes);
-        push_shuffle_bytes(len0, len1, &mut shuffle_bytes);
-        push_shuffle_bytes(len0 + len1, len2, &mut shuffle_bytes);
-        push_shuffle_bytes(len0 + len1 + len2, len3, &mut shuffle_bytes);
+        push_ssse3_shuffle_bytes(0, len0, &mut shuffle_bytes);
+        push_ssse3_shuffle_bytes(len0, len1, &mut shuffle_bytes);
+        push_ssse3_shuffle_bytes(len0 + len1, len2, &mut shuffle_bytes);
+        push_ssse3_shuffle_bytes(len0 + len1 + len2, len3, &mut shuffle_bytes);
 
         assert_eq!(16, shuffle_bytes.len());
 
@@ -62,16 +62,15 @@ fn main() {
     println!("];");
 }
 
-/// Push the shuffle indices
-fn push_shuffle_bytes(start_of_encoded_num: usize, encoded_length: usize, shuffle_bytes: &mut Vec<u8>) {
-    // least significant byte will be at the end
-    let end_of_encoded_num = start_of_encoded_num + encoded_length - 1;
-    // map encoded bytes to dest bytes, least significant first
+/// Push 4 shuffle bytes into a SSSE3 PSHUFB mask
+fn push_ssse3_shuffle_bytes(start_of_encoded_num: usize, encoded_length: usize, shuffle_bytes: &mut Vec<u8>) {
+    // Encoded nums are little-endian, and so is destination because SSSE3 is x86.
+    // So, just copy the bytes in order for all the encoded bytes
     for l in 0..encoded_length {
-        shuffle_bytes.push((end_of_encoded_num - l) as u8);
+        shuffle_bytes.push((start_of_encoded_num + l) as u8);
     }
 
-    // zero out unused most significant bytes
+    // Zero out any unused most significant bytes in the final u32
     // high bit set = populate destination with 0 byte
     for _ in 0..(4 - encoded_length) {
         shuffle_bytes.push(0x80);

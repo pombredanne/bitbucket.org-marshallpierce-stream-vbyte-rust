@@ -83,7 +83,7 @@ fn do_all_same_single_byte<E: Encoder, D: Decoder>() {
             decoded.clear();
             // create something distinct from `num` so we can tell when it gets overwritten
             let garbage = num.overflowing_add(1).0;
-            assert!(garbage != num);
+            assert_ne!(garbage, num);
 
             // 1 byte for each number, + 1 control byte for every 4 zeroes
             let control_byte_len = (count + 3) / 4;
@@ -94,8 +94,6 @@ fn do_all_same_single_byte<E: Encoder, D: Decoder>() {
             let extra_slots = 1000;
             encoded.resize(encoded_len + extra_slots, garbage);
             decoded.resize(count + extra_slots, garbage as u32);
-
-            println!("count {}", count);
 
             for _ in 0..count {
                 nums.push(num as u32);
@@ -154,7 +152,7 @@ fn partial_final_quad() {
 }
 
 #[test]
-fn compare_reference_impl() {
+fn encode_compare_reference_impl() {
     let ref_nums: Vec<u32> = (0..5000).map(|x| x * 100).collect();
     let mut ref_data = Vec::new();
     File::open("tests/data/data.bin").unwrap().read_to_end(&mut ref_data).unwrap();
