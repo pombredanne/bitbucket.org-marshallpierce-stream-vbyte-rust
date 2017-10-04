@@ -3,7 +3,7 @@
 extern crate byteorder;
 
 use std::cmp;
-use byteorder::{ByteOrder, BigEndian, LittleEndian};
+use byteorder::{ByteOrder, LittleEndian};
 
 mod tables;
 
@@ -107,7 +107,7 @@ pub fn encode<T: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
             let num = input[nums_encoded];
             let len = encode_num(num, &mut encoded_bytes[num_bytes_written..]);
 
-            control_byte |= ((len - 1) as u8) << (6 - i * 2);
+            control_byte |= ((len - 1) as u8) << (i * 2);
 
             num_bytes_written += len;
             nums_encoded += 1;
@@ -141,8 +141,8 @@ pub fn decode<T: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usi
         let mut nums_decoded = 4 * complete_quads;
 
         for i in 0..leftover_numbers {
-            let bitmask = 0xC0 >> (i * 2);
-            let len = ((control_byte & bitmask) >> (6 - i * 2)) as usize + 1;
+            let bitmask = 0x03 << (i * 2);
+            let len = ((control_byte & bitmask) >> (i * 2)) as usize + 1;
             output[nums_decoded] = decode_num(len, &encoded_nums[bytes_read..]);
             nums_decoded += 1;
             bytes_read += len;
@@ -166,14 +166,10 @@ fn encode_num(num: u32, output: &mut [u8]) -> usize {
 }
 
 fn decode_num(len: usize, input: &[u8]) -> u32 {
-    let mut num: u32 = input[0] as u32;
-    
-    for &b in input[1..len].iter() {
-        num <<= 8;
-        num |= b as u32;
-    }
+    let mut buf = [0_u8; 4];
+    &buf[0..len].copy_from_slice(&input[0..len]);
 
-    num
+    LittleEndian::read_u32(&buf)
 }
 
 #[cfg(test)]
@@ -203,8 +199,8 @@ mod tests {
     fn encode_num_middleish() {
         let mut buf = [0; 4];
 
-        assert_eq!(3, encode_num((1 << 16) + 1, &mut buf));
-        assert_eq!(&[0x01_u8, 0x00_u8, 0x01_u8, 0x00_u8], &buf);
+        assert_eq!(3, encode_num((1 << 16) + 3, &mut buf));
+        assert_eq!(&[0x03_u8, 0x00_u8, 0x01_u8, 0x00_u8], &buf);
     }
 
     #[test]
@@ -223,6 +219,30 @@ mod tests {
     #[test]
     fn decode_num_u32_max() {
         assert_eq!(u32::max_value(), decode_num(4, &vec![0xFF, 0xFF, 0xFF, 0xFF]));
+    }
+
+    #[test]
+    fn decode_num_4_byte() {
+        // 0x04030201
+        assert_eq!((4 << 24) + (3 << 16) + (2 << 8) + 1, decode_num(4, &vec![1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn decode_num_3_byte() {
+        // 0x04030201
+        assert_eq!((3 << 16) + (2 << 8) + 1, decode_num(3, &vec![1, 2, 3]));
+    }
+
+    #[test]
+    fn decode_num_2_byte() {
+        // 0x04030201
+        assert_eq!((2 << 8) + 1, decode_num(2, &vec![1, 2]));
+    }
+
+    #[test]
+    fn decode_num_1_byte() {
+        // 0x04030201
+        assert_eq!(1, decode_num(1, &vec![1]));
     }
 
     #[test]

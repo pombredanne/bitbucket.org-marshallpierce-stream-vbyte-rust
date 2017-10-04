@@ -53,8 +53,6 @@ fn all_zeros() {
         encoded.resize(encoded_len, 0xFF);
         decoded.resize(count, 0xFF);
 
-        println!("count {}", count);
-
         for _ in 0..count {
             nums.push(0);
         }
@@ -68,6 +66,35 @@ fn all_zeros() {
 
         assert_eq!(nums, decoded);
     }
+}
+
+#[test]
+fn partial_final_quad() {
+    // easily recognizable bit patterns
+    let nums = vec![0, 1 << 8, 3 << 16, 7 << 24, 2 << 8, 4 << 16];
+    let mut encoded = Vec::new();
+    encoded.resize(nums.len() * 5, 0xFF);
+
+    // 2 control bytes, 10 for first quad, 4 for second
+    let encoded_len = 2 + 10 + 5;
+    assert_eq!(encoded_len, encode::<Scalar>(&nums, &mut encoded[..]));
+    for (i, &b) in encoded[encoded_len..].iter().enumerate() {
+        assert_eq!(0xFF, b, "index {}", i);
+    }
+
+    let expected = vec![0xE4, 0x09,
+                        0x00,
+                        0x00, 0x01,
+                        0x00, 0x00, 0x03,
+                        0x00, 0x00, 0x00, 0x07,
+                        0x00, 0x02,
+                        0x00, 0x00, 0x04];
+    assert_eq!(&expected[..], &encoded[0..encoded_len]);
+
+    let mut decoded = Vec::new();
+    decoded.resize(nums.len(), 0);
+    decode::<Scalar>(&encoded[..], nums.len(), &mut decoded);
+    assert_eq!(nums, decoded);
 }
 
 #[test]
