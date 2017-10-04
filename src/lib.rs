@@ -27,6 +27,8 @@ use std::cmp;
 use byteorder::{ByteOrder, BigEndian};
 
 mod tables;
+mod cursor;
+pub use cursor::Cursor;
 
 #[cfg(feature = "x86_ssse3")]
 pub mod x86;
@@ -40,11 +42,20 @@ pub trait Encoder {
 }
 
 pub trait Decoder {
-    /// Decode encoded numbers in groups of 4 only.
-    /// `control_bytes` will be exactly as long as the number of complete 4-number quads in `input`.
+    /// Decode encoded numbers in groups of 4 only. Only control bytes that have all 4 lengths set
+    /// and their corresponding 4 encoded numbers will be provided (i.e. no trailing partial quad).
+    ///
+    /// `control_bytes` is the control bytes that correspond to `encoded_nums`.
+    /// `output` is the memory to write decoded numbers into.
+    /// `control_bytes_to_decode * 4` must be no greater than the length of `output`. It may
+    /// be greater than the number of control bytes remaining.
+    ///
+    /// Implementations should decode up to `control_bytes_to_decode` numbers, but may decode fewer.
+    ///
     /// Returns the number of numbers decoded and the total number of bytes read from
     /// `encoded_nums`.
-    fn decode_quads(control_bytes: &[u8], encoded_nums: &[u8], output: &mut [u32]) -> (usize, usize);
+    fn decode_quads(control_bytes: &[u8], encoded_nums: &[u8], output: &mut [u32],
+                    control_bytes_to_decode: usize) -> (usize, usize);
 }
 
 /// Regular ol' byte shuffling.
@@ -79,9 +90,31 @@ impl Encoder for Scalar {
 }
 
 impl Decoder for Scalar {
-    fn decode_quads(_control_bytes: &[u8], _encoded_nums: &[u8], _output: &mut [u32]) -> (usize, usize) {
-        // let the scalar loop decode the whole thing
-        (0, 0)
+    fn decode_quads(control_bytes: &[u8], encoded_nums: &[u8], output: &mut [u32],
+                    control_bytes_to_decode: usize) -> (usize, usize) {
+        debug_assert!(control_bytes_to_decode * 4 <= output.len());
+
+        let mut bytes_read: usize = 0;
+        let mut nums_decoded: usize = 0;
+        let control_byte_limit = cmp::min(control_bytes.len(), control_bytes_to_decode);
+
+        for &control_byte in control_bytes[0..control_byte_limit].iter() {
+            let (len0, len1, len2, len3) = tables::DECODE_LENGTH_PER_NUM_TABLE[control_byte as usize];
+            let len0 = len0 as usize;
+            let len1 = len1 as usize;
+            let len2 = len2 as usize;
+            let len3 = len3 as usize;
+
+            output[nums_decoded] = decode_num_scalar(len0, &encoded_nums[bytes_read..]);
+            output[nums_decoded + 1] = decode_num_scalar(len1, &encoded_nums[bytes_read + len0..]);
+            output[nums_decoded + 2] = decode_num_scalar(len2, &encoded_nums[bytes_read + len0 + len1..]);
+            output[nums_decoded + 3] = decode_num_scalar(len3, &encoded_nums[bytes_read + len0 + len1 + len2..]);
+
+            bytes_read += len0 + len1 + len2 + len3;
+            nums_decoded += 4;
+        }
+
+        (nums_decoded, bytes_read)
     }
 }
 
@@ -130,44 +163,37 @@ pub fn encode<T: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
 /// Returns the number of bytes read from `input`.
 pub fn decode<T: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usize {
     // 4 numbers to decode per control byte
-    let complete_quads = count / 4;
-    let leftover_numbers = count % 4;
-    let control_bytes_len = (count + 3) / 4;
-    let control_bytes = &input[0..control_bytes_len];
+    let shape = encoded_shape(count);
+    let control_bytes = &input[0..shape.control_bytes_len];
     // data immediately follows control bytes
-    let encoded_nums = &input[control_bytes_len..];
+    let encoded_nums = &input[shape.control_bytes_len..];
 
-    let (mut nums_decoded, mut bytes_read) = T::decode_quads(&control_bytes[0..complete_quads],
+    // let the (presumably faster) implementation do as much of the decoding as it can
+    let (nums_decoded, mut bytes_read) = T::decode_quads(&control_bytes[0..shape.complete_control_bytes_len],
                                                          &encoded_nums[..],
-                                                         &mut output[..]);
+                                                         // ensures output.len >= count
+                                                         &mut output[..count],
+                                                         shape.complete_control_bytes_len);
 
     let control_bytes_decoded = nums_decoded / 4;
 
-    // handle any remaining full quads
-    for &control_byte in control_bytes[control_bytes_decoded..complete_quads].iter() {
-        let (len0, len1, len2, len3) = tables::SCALAR_DECODE_TABLE[control_byte as usize];
-        let len0 = len0 as usize;
-        let len1 = len1 as usize;
-        let len2 = len2 as usize;
-        let len3 = len3 as usize;
+    // handle any remaining full quads if the provided Decoder did not finish them all
+    let (_, more_bytes_read) = Scalar::decode_quads(
+        &control_bytes[control_bytes_decoded..shape.complete_control_bytes_len],
+        &encoded_nums[bytes_read..],
+        &mut output[nums_decoded..],
+        shape.complete_control_bytes_len - control_bytes_decoded);
 
-        output[nums_decoded] = decode_num_scalar(len0, &encoded_nums[bytes_read..]);
-        output[nums_decoded + 1] = decode_num_scalar(len1, &encoded_nums[bytes_read + len0..]);
-        output[nums_decoded + 2] = decode_num_scalar(len2, &encoded_nums[bytes_read + len0 + len1..]);
-        output[nums_decoded + 3] = decode_num_scalar(len3, &encoded_nums[bytes_read + len0 + len1 + len2..]);
-
-        bytes_read += len0 + len1 + len2 + len3;
-        nums_decoded += 4;
-    }
+    bytes_read += more_bytes_read;
 
     // incomplete quad, if any
-    if leftover_numbers > 0 {
-        debug_assert!(leftover_numbers < 4);
+    if shape.leftover_numbers > 0 {
+        debug_assert!(shape.leftover_numbers < 4);
 
-        let control_byte = control_bytes[complete_quads];
-        let mut nums_decoded = 4 * complete_quads;
+        let control_byte = control_bytes[shape.complete_control_bytes_len];
+        let mut nums_decoded = 4 * shape.complete_control_bytes_len;
 
-        for i in 0..leftover_numbers {
+        for i in 0..shape.leftover_numbers {
             let bitmask = 0xC0 >> (i * 2);
             let len = ((control_byte & bitmask) >> (6 - i * 2)) as usize + 1;
             output[nums_decoded] = decode_num_scalar(len, &encoded_nums[bytes_read..]);
@@ -177,6 +203,21 @@ pub fn decode<T: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usi
     }
 
     control_bytes.len() + bytes_read
+}
+
+#[derive(Debug)]
+struct EncodedShape {
+    control_bytes_len: usize,
+    complete_control_bytes_len: usize,
+    leftover_numbers: usize
+}
+
+fn encoded_shape(count: usize) -> EncodedShape {
+    EncodedShape {
+        control_bytes_len: (count + 3) / 4,
+        complete_control_bytes_len: count / 4,
+        leftover_numbers: count % 4
+    }
 }
 
 fn encode_num_scalar(num: u32, output: &mut [u8]) -> usize {
@@ -204,66 +245,12 @@ fn decode_num_scalar(len: usize, input: &[u8]) -> u32 {
     num
 }
 
-#[cfg(test)]
-mod tests {
-    extern crate rand;
 
-    use super::*;
-    use self::rand::Rng;
-
-    #[test]
-    fn encode_num_zero() {
-        let mut buf = [0; 4];
-
-        assert_eq!(1, encode_num_scalar(0, &mut buf));
-        assert_eq!(&[0x00_u8, 0x00_u8, 0x00_u8, 0x00_u8], &buf);
-    }
-
-    #[test]
-    fn encode_num_bottom_two_bytes() {
-        let mut buf = [0; 4];
-
-        assert_eq!(2, encode_num_scalar((1 << 16) - 1, &mut buf));
-        assert_eq!(&[0xFF_u8, 0xFF_u8, 0x00_u8, 0x00_u8], &buf);
-    }
-
-    #[test]
-    fn encode_num_middleish() {
-        let mut buf = [0; 4];
-
-        assert_eq!(3, encode_num_scalar((1 << 16) + 1, &mut buf));
-        assert_eq!(&[0x01_u8, 0x00_u8, 0x01_u8, 0x00_u8], &buf);
-    }
-
-    #[test]
-    fn encode_num_u32_max() {
-        let mut buf = [0; 4];
-
-        assert_eq!(4, encode_num_scalar(u32::max_value(), &mut buf));
-        assert_eq!(&[0xFF_u8, 0xFF_u8, 0xFF_u8, 0xFF_u8], &buf);
-    }
-
-    #[test]
-    fn decode_num_zero() {
-        assert_eq!(0, decode_num_scalar(1, &vec![0, 0, 0, 0]));
-    }
-
-    #[test]
-    fn decode_num_u32_max() {
-        assert_eq!(u32::max_value(), decode_num_scalar(4, &vec![0xFF, 0xFF, 0xFF, 0xFF]));
-    }
-
-    #[test]
-    fn encode_decode_roundtrip_random() {
-        let mut rng = rand::weak_rng();
-
-        let mut buf = [0; 4];
-        for _ in 0..100_000 {
-            let num: u32 = rng.gen();
-            let len = encode_num_scalar(num, &mut buf);
-            let decoded = decode_num_scalar(len, &buf);
-
-            assert_eq!(num, decoded);
-        }
-    }
+fn cumulative_encoded_len(control_bytes: &[u8]) -> usize {
+    control_bytes.iter()
+            .map({ |&b| tables::DECODE_LENGTH_PER_QUAD_TABLE[b as usize] as usize })
+            .sum()
 }
+
+#[cfg(test)]
+mod tests;

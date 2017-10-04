@@ -56,6 +56,28 @@ fn decode_ssse3_rand_1m(b: &mut Bencher) {
 }
 
 #[bench]
+fn decode_cursor_scalar_rand_1k(b: &mut Bencher) {
+    do_decode_cursor_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000), Scalar);
+}
+
+#[cfg(feature = "x86_ssse3")]
+#[bench]
+fn decode_cursor_ssse3_rand_1k(b: &mut Bencher) {
+    do_decode_cursor_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000), x86::Ssse3);
+}
+
+#[bench]
+fn decode_cursor_scalar_rand_1m(b: &mut Bencher) {
+    do_decode_cursor_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1_000_000), Scalar);
+}
+
+#[cfg(feature = "x86_ssse3")]
+#[bench]
+fn decode_cursor_ssse3_rand_1m(b: &mut Bencher) {
+    do_decode_cursor_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1_000_000), x86::Ssse3);
+}
+
+#[bench]
 fn decode_scalar_zeros_1k(b: &mut Bencher) {
     do_decode_bench(b, iter::repeat(0).take(1000), Scalar);
 }
@@ -110,6 +132,25 @@ fn do_decode_bench<I: Iterator<Item=u32>, D: Decoder>(b: &mut Bencher, iter: I, 
     b.iter(|| {
         stream_vbyte::decode::<D>(&encoded[0..bytes_written], nums.len(), &mut decoded);
     });
+}
+
+fn do_decode_cursor_bench<I: Iterator<Item=u32>, D: Decoder>(b: &mut Bencher, iter: I, _decoder: D) {
+    let mut nums: Vec<u32> = Vec::new();
+    let mut encoded = Vec::new();
+    let mut decoded = Vec::new();
+
+    for i in iter {
+        nums.push(i);
+    }
+
+    encoded.resize(nums.len() * 5, 0);
+    let _ = stream_vbyte::encode::<Scalar>(&nums, &mut encoded);
+
+    decoded.resize(nums.len(), 0);
+    b.iter(|| {
+        let mut cursor = Cursor::new(&encoded, nums.len());
+        cursor.decode::<D>(&mut decoded);
+    })
 }
 
 // copied from tests because it's handy here too
