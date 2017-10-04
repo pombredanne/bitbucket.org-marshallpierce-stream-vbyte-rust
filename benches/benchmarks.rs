@@ -14,43 +14,67 @@ use std::iter;
 use stream_vbyte::*;
 
 #[bench]
-fn encode_rand_1kib(b: &mut Bencher) {
-    do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1024));
+fn encode_rand_1k(b: &mut Bencher) {
+    do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000));
 }
 
 #[bench]
-fn encode_rand_1mib(b: &mut Bencher) {
-    do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1024 * 1024));
+fn encode_rand_1m(b: &mut Bencher) {
+    do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000 * 1000));
 }
 
 #[bench]
-fn encode_zeros_1kib(b: &mut Bencher) {
-    do_encode_bench(b, iter::repeat(0).take(1024));
+fn encode_zeros_1k(b: &mut Bencher) {
+    do_encode_bench(b, iter::repeat(0).take(1000));
 }
 
 #[bench]
-fn encode_zeros_1mib(b: &mut Bencher) {
-    do_encode_bench(b, iter::repeat(0).take(1024 * 1024));
+fn encode_zeros_1m(b: &mut Bencher) {
+    do_encode_bench(b, iter::repeat(0).take(1_000_000));
 }
 
 #[bench]
-fn decode_rand_1kib(b: &mut Bencher) {
-    do_decode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1024));
+fn decode_scalar_rand_1k(b: &mut Bencher) {
+    do_decode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000), Scalar);
+}
+
+#[cfg(feature = "x86_ssse3")]
+#[bench]
+fn decode_ssse3_rand_1k(b: &mut Bencher) {
+    do_decode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000), x86::Ssse3);
 }
 
 #[bench]
-fn decode_rand_1mib(b: &mut Bencher) {
-    do_decode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1024 * 1024));
+fn decode_scalar_rand_1m(b: &mut Bencher) {
+    do_decode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1_000_000), Scalar);
+}
+
+#[cfg(feature = "x86_ssse3")]
+#[bench]
+fn decode_ssse3_rand_1m(b: &mut Bencher) {
+    do_decode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1_000_000), x86::Ssse3);
 }
 
 #[bench]
-fn decode_zeros_1kib(b: &mut Bencher) {
-    do_decode_bench(b, iter::repeat(0).take(1024));
+fn decode_scalar_zeros_1k(b: &mut Bencher) {
+    do_decode_bench(b, iter::repeat(0).take(1000), Scalar);
+}
+
+#[cfg(feature = "x86_ssse3")]
+#[bench]
+fn decode_ssse3_zeros_1k(b: &mut Bencher) {
+    do_decode_bench(b, iter::repeat(0).take(1000), x86::Ssse3);
 }
 
 #[bench]
-fn decode_zeros_1mib(b: &mut Bencher) {
-    do_decode_bench(b, iter::repeat(0).take(1024 * 1024));
+fn decode_scalar_zeros_1m(b: &mut Bencher) {
+    do_decode_bench(b, iter::repeat(0).take(1_000_000), Scalar);
+}
+
+#[cfg(feature = "x86_ssse3")]
+#[bench]
+fn decode_ssse3_zeros_1m(b: &mut Bencher) {
+    do_decode_bench(b, iter::repeat(0).take(1_000_000), x86::Ssse3);
 }
 
 fn do_encode_bench<I: Iterator<Item=u32>>(b: &mut Bencher, iter: I) {
@@ -68,7 +92,9 @@ fn do_encode_bench<I: Iterator<Item=u32>>(b: &mut Bencher, iter: I) {
     });
 }
 
-fn do_decode_bench<I: Iterator<Item=u32>>(b: &mut Bencher, iter: I) {
+// take a decoder param to save us some typing -- type inference won't work if you only specify some
+// of the generic types
+fn do_decode_bench<I: Iterator<Item=u32>, D: Decoder>(b: &mut Bencher, iter: I, _decoder: D) {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -82,7 +108,7 @@ fn do_decode_bench<I: Iterator<Item=u32>>(b: &mut Bencher, iter: I) {
 
     decoded.resize(nums.len(), 0);
     b.iter(|| {
-        stream_vbyte::decode::<Scalar>(&encoded[0..bytes_written], nums.len(), &mut decoded);
+        stream_vbyte::decode::<D>(&encoded[0..bytes_written], nums.len(), &mut decoded);
     });
 }
 
