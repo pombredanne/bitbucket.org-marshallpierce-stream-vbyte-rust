@@ -14,8 +14,6 @@ fn main() {
 
     match args[1].as_str() {
         "enc" => {
-            let mut nums: Vec<u32> = Vec::new();
-
             let stdin = std::io::stdin();
             let stdin_handle = stdin.lock();
 
@@ -40,7 +38,7 @@ fn main() {
             let mut stdin_handle = stdin.lock();
 
             let mut encoded = Vec::new();
-            stdin_handle.read_to_end(&mut encoded);
+            stdin_handle.read_to_end(&mut encoded).expect("Should be able to read stdin");
 
             let mut decoded = Vec::new();
             decoded.resize(count, 0);
