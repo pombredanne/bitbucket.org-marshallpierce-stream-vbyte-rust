@@ -1,11 +1,28 @@
 [![](https://img.shields.io/crates/v/stream-vbyte.svg)](https://crates.io/crates/stream-vbyte) [![](https://docs.rs/stream-vbyte/badge.svg)](https://docs.rs/stream-vbyte/)
 
-
 A port of Stream VByte to Rust.
 
 Stream VByte is a variable-length unsigned int encoding designed to make SIMD processing more efficient.
 
 See https://lemire.me/blog/2017/09/27/stream-vbyte-breaking-new-speed-records-for-integer-compression/ and https://arxiv.org/pdf/1709.08990.pdf for details on the format. The reference C implementation is https://github.com/lemire/streamvbyte.
+
+# Using it in your code
+
+There are two traits, `Encoder` and `Decoder`, that allow you to choose what logic to use in the inner hot loops. If you know which hardware you'll be running on, or you add runtime detection of CPU features, you can choose to use one that takes advantage of your hardware. Something like [raw-cpuid](https://crates.io/crates/raw-cpuid) will probably be useful for runtime detection.
+
+Encoders:
+- For now, the only encoder is `Scalar`, which uses plain old scalar (i.e. non vectorized) code. It works on all platforms. On an E5-1650v3, it encodes about 140 million random `u32`s per second.
+
+Decoders:
+- `Scalar` is also a decoder, with about the same performance as it has for encodes.
+- `x86::Ssse3` decodes about 2.7 billion random `u32`s per second.
+
+# Using SIMD
+
+- `x86::Ssse3`
+    - Enable the `x86_ssse3` feature for this crate.
+    - [SSSE3](https://en.wikipedia.org/wiki/SSSE3) has been around since Core-era Intel CPUs, so any modern `x86_64` system should have it.
+    - Currently, SIMD support relies on nightly-only rust features. You'll also need to add some compiler flags, namely `RUSTFLAGS='-C target-feature=+ssse3'`
 
 # Play with the CLI example
 
@@ -40,16 +57,6 @@ Encoded 10 numbers
 10
 Decoded 10 numbers
 
-```
-
-# Using SIMD
-
-There is one SIMD-accelerated `Decoder` implementation: `x86::Ssse3`, available when you enable the `x86_ssse3` feature for this crate. [SSSE3](https://en.wikipedia.org/wiki/SSSE3) has been around since Core-era Intel CPUs, so any modern `x86_64` system should have it. Unless you're writing a service for specific hardware that you know has the feature, you may need to do some runtime detection and decide at runtime whether or not to use the SSSE3 decoder. Something like [raw-cpuid](https://crates.io/crates/raw-cpuid) will probably be useful for that.
-
-Currently, SIMD support relies on nightly-only rust features. You'll also need to add some compiler flags, namely:
-
-```
-RUSTFLAGS='-C target-feature=+ssse3'
 ```
 
 # Maintainers
