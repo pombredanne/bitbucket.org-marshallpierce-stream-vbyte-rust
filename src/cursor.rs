@@ -2,8 +2,10 @@ use std::cmp;
 
 use super::{Decoder, Scalar, encoded_shape, EncodedShape, decode_num_scalar, cumulative_encoded_len};
 
+const MIN_DECODE_BUFFER_LEN: usize = 4;
+
 #[derive(Debug)]
-pub struct Cursor<'a> {
+pub struct DecodeCursor<'a> {
     control_bytes: &'a [u8],
     encoded_nums: &'a [u8],
     encoded_shape: EncodedShape,
@@ -13,11 +15,11 @@ pub struct Cursor<'a> {
     encoded_bytes_read: usize
 }
 
-impl<'a> Cursor<'a> {
-    pub fn new(input: &'a [u8], count: usize) -> Cursor<'a> {
+impl<'a> DecodeCursor<'a> {
+    pub fn new(input: &'a [u8], count: usize) -> DecodeCursor<'a> {
         let shape = encoded_shape(count);
 
-        Cursor {
+        DecodeCursor {
             control_bytes: &input[0..shape.control_bytes_len],
             encoded_nums: &input[shape.control_bytes_len..],
             encoded_shape: shape,
@@ -47,12 +49,13 @@ impl<'a> Cursor<'a> {
         self.encoded_bytes_read += skipped_encoded_len;
     }
 
-    /// Decode into the buffer. The buffer must be at least of size 16.
-    /// For best performance, the buffer size should be a multiple of 4.
-    /// Returns the number of numbers decoded by this invocation.
+    /// Decode into the `output` buffer. The buffer must be at least of size 4.
+    ///
+    /// Returns the number of numbers decoded by this invocation, which may be less than the size
+    /// of the buffer.
     pub fn decode<D: Decoder>(&mut self, output: &mut [u32]) -> usize {
         // TODO this is basically the top level `decode` function
-        debug_assert!(output.len() >= 16);
+        debug_assert!(output.len() >= MIN_DECODE_BUFFER_LEN);
         let start_nums_decoded = self.nums_decoded;
 
         // decode complete quads
@@ -96,6 +99,7 @@ impl<'a> Cursor<'a> {
             let control_byte = self.control_bytes[self.encoded_shape.complete_control_bytes_len];
 
             for i in 0..self.encoded_shape.leftover_numbers {
+                // first num's length in low 2 bits, last in high 2 bits
                 let bitmask = 0x03 << (i * 2);
                 let len = ((control_byte & bitmask) >> (i * 2)) as usize + 1;
                 remaining_output[i] = decode_num_scalar(len, &self.encoded_nums[self.encoded_bytes_read..]);
@@ -175,9 +179,9 @@ mod tests {
             let extra_slots = 100;
 
             // try every legal decode length (must be at least 16)
-            for decode_len in 16..cmp::max(16 + 1, count + 1) {
+            for decode_len in MIN_DECODE_BUFFER_LEN..cmp::max(MIN_DECODE_BUFFER_LEN + 1, count + 1) {
                 decoded_accum.clear();
-                let mut cursor = Cursor::new(&encoded[0..encoded_len], count);
+                let mut cursor = DecodeCursor::new(&encoded[0..encoded_len], count);
                 while cursor.has_more() {
                     let garbage = rng.gen();
                     decoded.clear();
@@ -226,12 +230,12 @@ mod tests {
 
             // decode in several chunks, copying to accumulator
             let extra_slots = 100;
-            let mut cursor = Cursor::new(&encoded[0..encoded_len], count);
+            let mut cursor = DecodeCursor::new(&encoded[0..encoded_len], count);
             while cursor.has_more() {
                 let garbage = rng.gen();
                 decoded.clear();
                 decoded.resize(count + extra_slots, garbage);
-                let decode_len: usize = rng.gen_range(16, cmp::max(16 + 1, count / 3));
+                let decode_len: usize = rng.gen_range(MIN_DECODE_BUFFER_LEN, cmp::max(MIN_DECODE_BUFFER_LEN + 1, count / 3));
                 let nums_decoded = cursor.decode::<D>(&mut decoded[0..decode_len]);
                 // the chunk is correct
                 assert_eq!(&nums[decoded_accum.len()..(decoded_accum.len() + nums_decoded)],

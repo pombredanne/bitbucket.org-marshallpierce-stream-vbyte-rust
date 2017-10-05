@@ -28,7 +28,7 @@ use byteorder::{ByteOrder, LittleEndian};
 
 mod tables;
 mod cursor;
-pub use cursor::Cursor;
+pub use cursor::DecodeCursor;
 
 #[cfg(feature = "x86_ssse3")]
 pub mod x86;

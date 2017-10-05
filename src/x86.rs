@@ -73,11 +73,12 @@ mod tests {
 
         encode::<Scalar>(&nums, &mut encoded);
 
+        // 16 control bytes
         let control_bytes = &encoded[0..16];
         let encoded_nums = &encoded[16..];
 
         for control_bytes_to_decode in 0..14 {
-            // requesting 13 or fewer yields exactly that many
+            // requesting 13 or fewer control bytes decodes all requested bytes
             let (nums_decoded, bytes_read) = Ssse3::decode_quads(&control_bytes,
                                                                  &encoded_nums,
                                                                  &mut decoded,
@@ -90,7 +91,8 @@ mod tests {
         }
 
         for control_bytes_to_decode in 14..17 {
-            // requesting more than 13 gets capped to 13
+            // requesting more than 13 gets capped to 13 because there may not be enough encoded
+            // nums to read 16 bytes at a time
             let (nums_decoded, bytes_read) = Ssse3::decode_quads(&control_bytes,
                                                                  &encoded_nums,
                                                                  &mut decoded,

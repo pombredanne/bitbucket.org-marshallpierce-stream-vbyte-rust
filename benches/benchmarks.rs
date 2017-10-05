@@ -148,7 +148,7 @@ fn do_decode_cursor_bench<I: Iterator<Item=u32>, D: Decoder>(b: &mut Bencher, it
 
     decoded.resize(nums.len(), 0);
     b.iter(|| {
-        let mut cursor = Cursor::new(&encoded, nums.len());
+        let mut cursor = DecodeCursor::new(&encoded, nums.len());
         cursor.decode::<D>(&mut decoded);
     })
 }
