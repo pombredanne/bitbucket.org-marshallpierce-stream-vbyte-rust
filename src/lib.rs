@@ -34,7 +34,7 @@ pub use cursor::DecodeCursor;
 pub mod x86;
 
 pub trait Encoder {
-    /// Encode all input numbers that are in groups of 4.
+    /// Encode complete quads of input numbers.
     /// `control_bytes` will be exactly as long as the number of complete 4-number quads in `input`.
     /// Control bytes are written to `control_bytes` and encoded numbers to `encoded_nums`.
     /// Returns the total bytes written to `encoded_nums`.
@@ -42,7 +42,7 @@ pub trait Encoder {
 }
 
 pub trait Decoder {
-    /// Decode encoded numbers in groups of 4 only. Only control bytes that have all 4 lengths set
+    /// Decode encoded numbers in complete quads. Only control bytes that have all 4 lengths set
     /// and their corresponding 4 encoded numbers will be provided (i.e. no trailing partial quad).
     ///
     /// `control_bytes` is the control bytes that correspond to `encoded_nums`.
@@ -118,32 +118,32 @@ impl Decoder for Scalar {
     }
 }
 
-/// Encode the input slice into the output slice. The worst-case encoded length is 4 bytes per `u32`
-/// plus another byte for every 4 `u32`s, including a trailing partial 4-some.
+/// Encode the `input` slice into the `output` slice.
+///
+/// If you don't have specific knowledge of the input that would let you determine the encoded
+/// length ahead of time, make `output` 5x as long as `input`. The worst-case encoded length is 4
+/// bytes per `u32` plus another byte for every 4 `u32`s, including any trailing partial 4-some.
+///
 /// Returns the number of bytes written to the `output` slice.
 pub fn encode<T: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
     if input.len() == 0 {
         return 0;
     }
 
-    let complete_quads = input.len() / 4;
-    let leftover_numbers = input.len() % 4;
-    let control_bytes_len = (input.len() + 3) / 4;
+    let shape = encoded_shape(input.len());
 
-    let (control_bytes, encoded_bytes) = output.split_at_mut(control_bytes_len);
+    let (control_bytes, encoded_bytes) = output.split_at_mut(shape.control_bytes_len);
 
     let mut num_bytes_written = T::encode_quads(&input[..],
-                                                &mut control_bytes[0..complete_quads],
+                                                &mut control_bytes[0..shape.complete_control_bytes_len],
                                                 &mut encoded_bytes[..]);
 
     // last control byte, if there were leftovers
-    if leftover_numbers > 0 {
-        debug_assert!(leftover_numbers < 4);
-
+    if shape.leftover_numbers > 0 {
         let mut control_byte = 0;
-        let mut nums_encoded = complete_quads * 4;
+        let mut nums_encoded = shape.complete_control_bytes_len * 4;
 
-        for i in 0..leftover_numbers {
+        for i in 0..shape.leftover_numbers {
             let num = input[nums_encoded];
             let len = encode_num_scalar(num, &mut encoded_bytes[num_bytes_written..]);
 
@@ -152,7 +152,7 @@ pub fn encode<T: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
             num_bytes_written += len;
             nums_encoded += 1;
         }
-        control_bytes[complete_quads] = control_byte;
+        control_bytes[shape.complete_control_bytes_len] = control_byte;
     }
 
     control_bytes.len() + num_bytes_written
@@ -188,8 +188,6 @@ pub fn decode<T: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usi
 
     // incomplete quad, if any
     if shape.leftover_numbers > 0 {
-        debug_assert!(shape.leftover_numbers < 4);
-
         let control_byte = control_bytes[shape.complete_control_bytes_len];
         let mut nums_decoded = 4 * shape.complete_control_bytes_len;
 
@@ -205,7 +203,7 @@ pub fn decode<T: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usi
     control_bytes.len() + bytes_read
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct EncodedShape {
     control_bytes_len: usize,
     complete_control_bytes_len: usize,

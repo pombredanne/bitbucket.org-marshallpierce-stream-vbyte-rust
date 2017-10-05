@@ -84,7 +84,7 @@ fn do_all_same_single_byte<E: Encoder, D: Decoder>() {
             nums.clear();
             encoded.clear();
             decoded.clear();
-            // create something distinct from `num` so we can tell when it gets overwritten
+            // create something distinct from `num` so we can tell if it gets overwritten
             let garbage = num.overflowing_add(1).0;
             assert_ne!(garbage, num);
 
@@ -126,7 +126,7 @@ fn do_all_same_single_byte<E: Encoder, D: Decoder>() {
 }
 
 #[test]
-fn partial_final_quad() {
+fn partial_final_quad_roundtrip() {
     // easily recognizable bit patterns
     let nums = vec![0, 1 << 8, 3 << 16, 7 << 24, 2 << 8, 4 << 16];
     let mut encoded = Vec::new();
