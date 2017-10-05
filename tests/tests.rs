@@ -1,6 +1,9 @@
 extern crate stream_vbyte;
 extern crate rand;
 
+use std::fs::File;
+use std::io::Read;
+
 use self::rand::Rng;
 
 use stream_vbyte::*;
@@ -122,3 +125,47 @@ fn do_all_same_single_byte<E: Encoder, D: Decoder>() {
     }
 }
 
+#[test]
+fn partial_final_quad() {
+    // easily recognizable bit patterns
+    let nums = vec![0, 1 << 8, 3 << 16, 7 << 24, 2 << 8, 4 << 16];
+    let mut encoded = Vec::new();
+    encoded.resize(nums.len() * 5, 0xFF);
+
+    // 2 control bytes, 10 for first quad, 4 for second
+    let encoded_len = 2 + 10 + 5;
+    assert_eq!(encoded_len, encode::<Scalar>(&nums, &mut encoded[..]));
+    for (i, &b) in encoded[encoded_len..].iter().enumerate() {
+        assert_eq!(0xFF, b, "index {}", i);
+    }
+
+    let expected = vec![0xE4, 0x09,
+                        0x00,
+                        0x00, 0x01,
+                        0x00, 0x00, 0x03,
+                        0x00, 0x00, 0x00, 0x07,
+                        0x00, 0x02,
+                        0x00, 0x00, 0x04];
+    assert_eq!(&expected[..], &encoded[0..encoded_len]);
+
+    let mut decoded = Vec::new();
+    decoded.resize(nums.len(), 0);
+    decode::<Scalar>(&encoded[..], nums.len(), &mut decoded);
+    assert_eq!(nums, decoded);
+}
+
+#[test]
+fn encode_compare_reference_impl() {
+    let ref_nums: Vec<u32> = (0..5000).map(|x| x * 100).collect();
+    let mut ref_data = Vec::new();
+    File::open("tests/data/data.bin").unwrap().read_to_end(&mut ref_data).unwrap();
+    let ref_data = ref_data;
+
+    let mut rust_encoded_data = Vec::new();
+    rust_encoded_data.resize(ref_nums.len() * 5, 0);
+    let bytes_written = encode::<Scalar>(&ref_nums, &mut rust_encoded_data);
+    rust_encoded_data.truncate(bytes_written);
+
+    assert_eq!(ref_data.len(), bytes_written);
+    assert_eq!(ref_data, rust_encoded_data);
+}

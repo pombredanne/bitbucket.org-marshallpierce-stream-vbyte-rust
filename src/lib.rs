@@ -24,7 +24,7 @@
 extern crate byteorder;
 
 use std::cmp;
-use byteorder::{ByteOrder, BigEndian};
+use byteorder::{ByteOrder, LittleEndian};
 
 mod tables;
 mod cursor;
@@ -79,7 +79,7 @@ impl Encoder for Scalar {
             let len3 = encode_num_scalar(num3, &mut encoded_nums[bytes_written + len0 + len1 + len2..]);
 
             // this is a few percent faster in my testing than using control_bytes.iter_mut()
-            control_bytes[quads_encoded] = ((len0 - 1) << 6 | (len1 - 1) << 4 | (len2 - 1) << 2 | (len3 - 1)) as u8;
+            control_bytes[quads_encoded] = ((len0 - 1) | (len1 - 1) << 2 | (len2 - 1) << 4 | (len3 - 1) << 6) as u8;
 
             bytes_written += len0 + len1 + len2 + len3;
             nums_encoded += 4;
@@ -147,7 +147,7 @@ pub fn encode<T: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
             let num = input[nums_encoded];
             let len = encode_num_scalar(num, &mut encoded_bytes[num_bytes_written..]);
 
-            control_byte |= ((len - 1) as u8) << (6 - i * 2);
+            control_byte |= ((len - 1) as u8) << (i * 2);
 
             num_bytes_written += len;
             nums_encoded += 1;
@@ -194,8 +194,8 @@ pub fn decode<T: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usi
         let mut nums_decoded = 4 * shape.complete_control_bytes_len;
 
         for i in 0..shape.leftover_numbers {
-            let bitmask = 0xC0 >> (i * 2);
-            let len = ((control_byte & bitmask) >> (6 - i * 2)) as usize + 1;
+            let bitmask = 0x03 << (i * 2);
+            let len = ((control_byte & bitmask) >> (i * 2)) as usize + 1;
             output[nums_decoded] = decode_num_scalar(len, &encoded_nums[bytes_read..]);
             nums_decoded += 1;
             bytes_read += len;
@@ -224,32 +224,27 @@ fn encode_num_scalar(num: u32, output: &mut [u8]) -> usize {
     // this will calculate 0_u32 as taking 0 bytes, so ensure at least 1 byte
     let len = cmp::max(1_usize, 4 - num.leading_zeros() as usize / 8);
     let mut buf = [0_u8; 4];
-    BigEndian::write_u32(&mut buf, num);
-    let start_index_in_buf = 4 - len;
+    LittleEndian::write_u32(&mut buf, num);
 
     for i in 0..len {
-        output[i] = buf[start_index_in_buf + i];
+        output[i] = buf[i];
     }
 
     len
 }
 
 fn decode_num_scalar(len: usize, input: &[u8]) -> u32 {
-    let mut num: u32 = input[0] as u32;
+    let mut buf = [0_u8; 4];
+    &buf[0..len].copy_from_slice(&input[0..len]);
 
-    for &b in input[1..len].iter() {
-        num <<= 8;
-        num |= b as u32;
-    }
-
-    num
+    LittleEndian::read_u32(&buf)
 }
 
 
 fn cumulative_encoded_len(control_bytes: &[u8]) -> usize {
     control_bytes.iter()
-            .map({ |&b| tables::DECODE_LENGTH_PER_QUAD_TABLE[b as usize] as usize })
-            .sum()
+        .map({ |&b| tables::DECODE_LENGTH_PER_QUAD_TABLE[b as usize] as usize })
+        .sum()
 }
 
 #[cfg(test)]

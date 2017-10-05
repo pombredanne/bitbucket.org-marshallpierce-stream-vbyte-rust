@@ -1,6 +1,6 @@
 [package]
 name = "stream-vbyte"
-version = "0.1.0"
+version = "0.2.0"
 description = "Encode and decode numbers in the Stream VByte format"
 authors = ["Marshall Pierce <marshall@mpierce.org>"]
 homepage = "https://bitbucket.org/marshallpierce/stream-vbyte-rust"
@@ -16,6 +16,7 @@ x86intrin = {version = "0.4.3", optional = true}
 
 [dev-dependencies]
 rand = "0.3.16"
+clap = "2.26.2"
 
 [profile.bench]
 # Useful for better disassembly when using `perf record` and `perf annotate`

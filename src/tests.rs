@@ -33,8 +33,8 @@ fn encode_num_bottom_two_bytes() {
 fn encode_num_middleish() {
     let mut buf = [0; 4];
 
-    assert_eq!(3, encode_num_scalar((1 << 16) + 1, &mut buf));
-    assert_eq!(&[0x01_u8, 0x00_u8, 0x01_u8, 0x00_u8], &buf);
+    assert_eq!(3, encode_num_scalar((1 << 16) + 3, &mut buf));
+    assert_eq!(&[0x03_u8, 0x00_u8, 0x01_u8, 0x00_u8], &buf);
 }
 
 #[test]
@@ -55,6 +55,29 @@ fn decode_num_u32_max() {
     assert_eq!(u32::max_value(), decode_num_scalar(4, &vec![0xFF, 0xFF, 0xFF, 0xFF]));
 }
 
+#[test]
+fn decode_num_4_byte() {
+    // 0x04030201
+    assert_eq!((4 << 24) + (3 << 16) + (2 << 8) + 1, decode_num_scalar(4, &vec![1, 2, 3, 4]));
+}
+
+#[test]
+fn decode_num_3_byte() {
+    // 0x04030201
+    assert_eq!((3 << 16) + (2 << 8) + 1, decode_num_scalar(3, &vec![1, 2, 3]));
+}
+
+#[test]
+fn decode_num_2_byte() {
+    // 0x04030201
+    assert_eq!((2 << 8) + 1, decode_num_scalar(2, &vec![1, 2]));
+}
+
+#[test]
+fn decode_num_1_byte() {
+    // 0x04030201
+    assert_eq!(1, decode_num_scalar(1, &vec![1]));
+}
 #[test]
 fn encode_decode_roundtrip_random() {
     let mut rng = rand::weak_rng();

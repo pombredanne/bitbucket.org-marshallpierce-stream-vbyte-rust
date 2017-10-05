@@ -96,8 +96,8 @@ impl<'a> Cursor<'a> {
             let control_byte = self.control_bytes[self.encoded_shape.complete_control_bytes_len];
 
             for i in 0..self.encoded_shape.leftover_numbers {
-                let bitmask = 0xC0 >> (i * 2);
-                let len = ((control_byte & bitmask) >> (6 - i * 2)) as usize + 1;
+                let bitmask = 0x03 << (i * 2);
+                let len = ((control_byte & bitmask) >> (i * 2)) as usize + 1;
                 remaining_output[i] = decode_num_scalar(len, &self.encoded_nums[self.encoded_bytes_read..]);
                 self.nums_decoded += 1;
                 self.encoded_bytes_read += len;
