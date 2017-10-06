@@ -53,7 +53,6 @@ impl<'a> DecodeCursor<'a> {
     /// Returns the number of numbers decoded by this invocation, which may be less than the size
     /// of the buffer.
     pub fn decode<D: Decoder>(&mut self, output: &mut [u32]) -> usize {
-        // TODO this is basically the top level `decode` function
         debug_assert!(output.len() >= 4);
         let start_nums_decoded = self.nums_decoded;
 

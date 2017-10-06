@@ -126,7 +126,7 @@ impl Decoder for Scalar {
 /// bytes per `u32` plus another byte for every 4 `u32`s, including any trailing partial 4-some.
 ///
 /// Returns the number of bytes written to the `output` slice.
-pub fn encode<T: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
+pub fn encode<E: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
     if input.len() == 0 {
         return 0;
     }
@@ -135,7 +135,7 @@ pub fn encode<T: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
 
     let (control_bytes, encoded_bytes) = output.split_at_mut(shape.control_bytes_len);
 
-    let mut num_bytes_written = T::encode_quads(&input[..],
+    let mut num_bytes_written = E::encode_quads(&input[..],
                                                 &mut control_bytes[0..shape.complete_control_bytes_len],
                                                 &mut encoded_bytes[..]);
 
@@ -161,48 +161,16 @@ pub fn encode<T: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
 
 /// Decode `count` numbers from `input`, writing them to `output`. The `count` must be the same
 /// as the number of items originally encoded.
+///
+/// `output` must be at least of size 4, and must be large enough for all `count` numbers.
+///
 /// Returns the number of bytes read from `input`.
-pub fn decode<T: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usize {
-    // 4 numbers to decode per control byte
-    let shape = encoded_shape(count);
-    let control_bytes = &input[0..shape.control_bytes_len];
-    // data immediately follows control bytes
-    let encoded_nums = &input[shape.control_bytes_len..];
+pub fn decode<D: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usize {
+    let mut cursor = DecodeCursor::new(&input, count);
 
-    // let the (presumably faster) implementation do as much of the decoding as it can
-    let complete_control_bytes = &control_bytes[0..shape.complete_control_bytes_len];
-    let (nums_decoded, mut bytes_read) = T::decode_quads(&complete_control_bytes,
-                                                         &encoded_nums[..],
-                                                         // ensures output.len >= count
-                                                         &mut output[..count],
-                                                         shape.complete_control_bytes_len);
+    assert_eq!(count, cursor.decode::<D>(output), "output buffer was not large enough");
 
-    let control_bytes_decoded = nums_decoded / 4;
-
-    // handle any remaining full quads if the provided Decoder did not finish them all
-    let (_, more_bytes_read) = Scalar::decode_quads(
-        &control_bytes[control_bytes_decoded..shape.complete_control_bytes_len],
-        &encoded_nums[bytes_read..],
-        &mut output[nums_decoded..],
-        shape.complete_control_bytes_len - control_bytes_decoded);
-
-    bytes_read += more_bytes_read;
-
-    // incomplete quad, if any
-    if shape.leftover_numbers > 0 {
-        let control_byte = control_bytes[shape.complete_control_bytes_len];
-        let mut nums_decoded = 4 * shape.complete_control_bytes_len;
-
-        for i in 0..shape.leftover_numbers {
-            let bitmask = 0x03 << (i * 2);
-            let len = ((control_byte & bitmask) >> (i * 2)) as usize + 1;
-            output[nums_decoded] = decode_num_scalar(len, &encoded_nums[bytes_read..]);
-            nums_decoded += 1;
-            bytes_read += len;
-        }
-    }
-
-    control_bytes.len() + bytes_read
+    cursor.input_consumed()
 }
 
 #[derive(Debug, PartialEq)]
