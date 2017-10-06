@@ -3,6 +3,7 @@ extern crate rand;
 
 use std::fs::File;
 use std::io::Read;
+use std::cmp;
 
 use self::rand::Rng;
 
@@ -11,6 +12,8 @@ use stream_vbyte::*;
 #[path="../src/random_varint.rs"]
 mod random_varint;
 use random_varint::*;
+
+const MIN_DECODE_BUFFER_LEN: usize = 4;
 
 #[test]
 fn random_roundtrip_scalar_scalar() {
@@ -32,6 +35,73 @@ fn all_same_single_byte_scalar_scalar() {
 #[test]
 fn all_same_single_byte_scalar_ssse3() {
     do_all_same_single_byte::<Scalar, x86::Ssse3>();
+}
+
+#[test]
+fn decode_cursor_random_decode_len_scalar() {
+    decode_in_chunks_random_decode_len::<Scalar>();
+}
+
+#[cfg(feature = "x86_ssse3")]
+#[test]
+fn decode_cursor_random_decode_len_ssse3() {
+    decode_in_chunks_random_decode_len::<x86::Ssse3>();
+}
+
+#[test]
+fn decode_cursor_every_decode_len_scalar() {
+    decode_in_chunks_every_decode_len::<Scalar>()
+}
+
+#[cfg(feature = "x86_ssse3")]
+#[test]
+fn decode_cursor_every_decode_len_ssse3() {
+    decode_in_chunks_every_decode_len::<x86::Ssse3>()
+}
+
+#[test]
+fn partial_final_quad_roundtrip() {
+    // easily recognizable bit patterns
+    let nums = vec![0, 1 << 8, 3 << 16, 7 << 24, 2 << 8, 4 << 16];
+    let mut encoded = Vec::new();
+    encoded.resize(nums.len() * 5, 0xFF);
+
+    // 2 control bytes, 10 for first quad, 4 for second
+    let encoded_len = 2 + 10 + 5;
+    assert_eq!(encoded_len, encode::<Scalar>(&nums, &mut encoded[..]));
+    for (i, &b) in encoded[encoded_len..].iter().enumerate() {
+        assert_eq!(0xFF, b, "index {}", i);
+    }
+
+    let expected = vec![0xE4, 0x09,
+                        0x00,
+                        0x00, 0x01,
+                        0x00, 0x00, 0x03,
+                        0x00, 0x00, 0x00, 0x07,
+                        0x00, 0x02,
+                        0x00, 0x00, 0x04];
+    assert_eq!(&expected[..], &encoded[0..encoded_len]);
+
+    let mut decoded = Vec::new();
+    decoded.resize(nums.len(), 0);
+    decode::<Scalar>(&encoded[..], nums.len(), &mut decoded);
+    assert_eq!(nums, decoded);
+}
+
+#[test]
+fn encode_compare_reference_impl() {
+    let ref_nums: Vec<u32> = (0..5000).map(|x| x * 100).collect();
+    let mut ref_data = Vec::new();
+    File::open("tests/data/data.bin").unwrap().read_to_end(&mut ref_data).unwrap();
+    let ref_data = ref_data;
+
+    let mut rust_encoded_data = Vec::new();
+    rust_encoded_data.resize(ref_nums.len() * 5, 0);
+    let bytes_written = encode::<Scalar>(&ref_nums, &mut rust_encoded_data);
+    rust_encoded_data.truncate(bytes_written);
+
+    assert_eq!(ref_data.len(), bytes_written);
+    assert_eq!(ref_data, rust_encoded_data);
 }
 
 fn do_random_roundtrip<E: Encoder, D: Decoder>() {
@@ -125,47 +195,104 @@ fn do_all_same_single_byte<E: Encoder, D: Decoder>() {
     }
 }
 
-#[test]
-fn partial_final_quad_roundtrip() {
-    // easily recognizable bit patterns
-    let nums = vec![0, 1 << 8, 3 << 16, 7 << 24, 2 << 8, 4 << 16];
+fn decode_in_chunks_every_decode_len<D: Decoder>() {
+    let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
-    encoded.resize(nums.len() * 5, 0xFF);
-
-    // 2 control bytes, 10 for first quad, 4 for second
-    let encoded_len = 2 + 10 + 5;
-    assert_eq!(encoded_len, encode::<Scalar>(&nums, &mut encoded[..]));
-    for (i, &b) in encoded[encoded_len..].iter().enumerate() {
-        assert_eq!(0xFF, b, "index {}", i);
-    }
-
-    let expected = vec![0xE4, 0x09,
-                        0x00,
-                        0x00, 0x01,
-                        0x00, 0x00, 0x03,
-                        0x00, 0x00, 0x00, 0x07,
-                        0x00, 0x02,
-                        0x00, 0x00, 0x04];
-    assert_eq!(&expected[..], &encoded[0..encoded_len]);
-
     let mut decoded = Vec::new();
-    decoded.resize(nums.len(), 0);
-    decode::<Scalar>(&encoded[..], nums.len(), &mut decoded);
-    assert_eq!(nums, decoded);
+    let mut decoded_accum = Vec::new();
+    let mut rng = rand::weak_rng();
+
+    for count in 0..100 {
+        nums.clear();
+        encoded.clear();
+        decoded.clear();
+
+        for i in RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(count) {
+            nums.push(i);
+        }
+
+        encoded.resize(count * 5, 0);
+        let encoded_len = encode::<Scalar>(&nums, &mut encoded);
+
+        let extra_slots = 100;
+
+        // try every legal decode length
+        for decode_len in MIN_DECODE_BUFFER_LEN..cmp::max(MIN_DECODE_BUFFER_LEN + 1, count + 1) {
+            decoded_accum.clear();
+            let mut cursor = DecodeCursor::new(&encoded[0..encoded_len], count);
+            while cursor.has_more() {
+                let garbage = rng.gen();
+                decoded.clear();
+                decoded.resize(count + extra_slots, garbage);
+                let nums_decoded = cursor.decode::<D>(&mut decoded[0..decode_len]);
+                // the chunk is correct
+                assert_eq!(&nums[decoded_accum.len()..(decoded_accum.len() + nums_decoded)],
+                           &decoded[0..nums_decoded]);
+                // beyond the chunk wasn't overwritten
+                for (i, &n) in decoded[nums_decoded..(count + extra_slots)].iter().enumerate() {
+                    assert_eq!(garbage as u32, n, "index {}", i);
+                }
+
+                // accumulate for later comparison
+                for &n in &decoded[0..nums_decoded] {
+                    decoded_accum.push(n);
+                }
+            }
+
+            assert_eq!(encoded_len, cursor.input_consumed());
+            assert_eq!(count, decoded_accum.len());
+            assert_eq!(&nums, &decoded_accum);
+        }
+    }
 }
 
-#[test]
-fn encode_compare_reference_impl() {
-    let ref_nums: Vec<u32> = (0..5000).map(|x| x * 100).collect();
-    let mut ref_data = Vec::new();
-    File::open("tests/data/data.bin").unwrap().read_to_end(&mut ref_data).unwrap();
-    let ref_data = ref_data;
+fn decode_in_chunks_random_decode_len<D: Decoder>() {
+    let mut nums: Vec<u32> = Vec::new();
+    let mut encoded = Vec::new();
+    let mut decoded = Vec::new();
+    let mut decoded_accum = Vec::new();
+    let mut rng = rand::weak_rng();
+    for _ in 0..10_000 {
+        nums.clear();
+        encoded.clear();
+        decoded.clear();
+        decoded_accum.clear();
 
-    let mut rust_encoded_data = Vec::new();
-    rust_encoded_data.resize(ref_nums.len() * 5, 0);
-    let bytes_written = encode::<Scalar>(&ref_nums, &mut rust_encoded_data);
-    rust_encoded_data.truncate(bytes_written);
+        let count = rng.gen_range(0, 500);
 
-    assert_eq!(ref_data.len(), bytes_written);
-    assert_eq!(ref_data, rust_encoded_data);
+        for i in RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(count) {
+            nums.push(i);
+        }
+
+        encoded.resize(count * 5, 0);
+        let encoded_len = encode::<Scalar>(&nums, &mut encoded);
+
+        // decode in several chunks, copying to accumulator
+        let extra_slots = 100;
+        let mut cursor = DecodeCursor::new(&encoded[0..encoded_len], count);
+        while cursor.has_more() {
+            let garbage = rng.gen();
+            decoded.clear();
+            decoded.resize(count + extra_slots, garbage);
+            let decode_len: usize = rng.gen_range(MIN_DECODE_BUFFER_LEN,
+                                                  cmp::max(MIN_DECODE_BUFFER_LEN + 1, count + 1));
+            let nums_decoded = cursor.decode::<D>(&mut decoded[0..decode_len]);
+            // the chunk is correct
+            assert_eq!(&nums[decoded_accum.len()..(decoded_accum.len() + nums_decoded)],
+                       &decoded[0..nums_decoded]);
+            // beyond the chunk wasn't overwritten
+            for (i, &n) in decoded[nums_decoded..(count + extra_slots)].iter().enumerate() {
+                assert_eq!(garbage as u32, n, "index {}", i);
+            }
+
+            // accumulate for later comparison
+            for &n in &decoded[0..nums_decoded] {
+                decoded_accum.push(n);
+            }
+        }
+
+        assert_eq!(encoded_len, cursor.input_consumed());
+        assert_eq!(count, decoded_accum.len());
+        assert_eq!(&nums[..], &decoded_accum[0..count]);
+    }
 }

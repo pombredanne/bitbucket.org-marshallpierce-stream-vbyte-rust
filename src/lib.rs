@@ -46,13 +46,14 @@ pub trait Decoder {
     /// and their corresponding 4 encoded numbers will be provided (i.e. no trailing partial quad).
     ///
     /// `control_bytes` is the control bytes that correspond to `encoded_nums`.
-    /// `output` is the memory to write decoded numbers into.
+    /// `output` is the buffer to write decoded numbers into.
     /// `control_bytes_to_decode * 4` must be no greater than the length of `output`. It may
     /// be greater than the number of control bytes remaining.
     ///
-    /// Implementations should decode up to `control_bytes_to_decode` numbers, but may decode fewer.
+    /// Implementations should decode up to `control_bytes_to_decode` control bytes, but may decode
+    /// fewer.
     ///
-    /// Returns the number of numbers decoded and the total number of bytes read from
+    /// Returns the number of numbers decoded and the number of bytes read from
     /// `encoded_nums`.
     fn decode_quads(control_bytes: &[u8], encoded_nums: &[u8], output: &mut [u32],
                     control_bytes_to_decode: usize) -> (usize, usize);
@@ -158,7 +159,7 @@ pub fn encode<T: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
     control_bytes.len() + num_bytes_written
 }
 
-/// Decode `count` numbers from `input`, appending them to `output`. The `count` must be the same
+/// Decode `count` numbers from `input`, writing them to `output`. The `count` must be the same
 /// as the number of items originally encoded.
 /// Returns the number of bytes read from `input`.
 pub fn decode<T: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usize {
@@ -169,7 +170,8 @@ pub fn decode<T: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usi
     let encoded_nums = &input[shape.control_bytes_len..];
 
     // let the (presumably faster) implementation do as much of the decoding as it can
-    let (nums_decoded, mut bytes_read) = T::decode_quads(&control_bytes[0..shape.complete_control_bytes_len],
+    let complete_control_bytes = &control_bytes[0..shape.complete_control_bytes_len];
+    let (nums_decoded, mut bytes_read) = T::decode_quads(&complete_control_bytes,
                                                          &encoded_nums[..],
                                                          // ensures output.len >= count
                                                          &mut output[..count],
@@ -240,6 +242,8 @@ fn decode_num_scalar(len: usize, input: &[u8]) -> u32 {
 
 
 fn cumulative_encoded_len(control_bytes: &[u8]) -> usize {
+    // sum could only overflow with an invalid encoding because the sum can be no larger than
+    // the complete length of the encoded data, which fits in a usize
     control_bytes.iter()
         .map({ |&b| tables::DECODE_LENGTH_PER_QUAD_TABLE[b as usize] as usize })
         .sum()
