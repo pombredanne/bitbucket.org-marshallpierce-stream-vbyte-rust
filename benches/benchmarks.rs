@@ -99,6 +99,26 @@ fn decode_ssse3_zeros_1m(b: &mut Bencher) {
     do_decode_bench(b, iter::repeat(0).take(1_000_000), x86::Ssse3);
 }
 
+#[bench]
+fn skip_all_1m(b: &mut Bencher) {
+    let mut nums: Vec<u32> = Vec::new();
+    let mut encoded = Vec::new();
+    let mut decoded = Vec::new();
+    let count = 1_000_000;
+
+    for i in RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(count) {
+        nums.push(i);
+    }
+
+    encoded.resize(nums.len() * 5, 0);
+    let bytes_written = stream_vbyte::encode::<Scalar>(&nums, &mut encoded);
+
+    decoded.resize(nums.len(), 0);
+    b.iter(|| {
+        DecodeCursor::new(&encoded[0..bytes_written], count).skip(count);
+    });
+}
+
 fn do_encode_bench<I: Iterator<Item=u32>>(b: &mut Bencher, iter: I) {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
