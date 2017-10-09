@@ -9,11 +9,10 @@ use self::rand::Rng;
 
 use stream_vbyte::*;
 
-#[path="../src/random_varint.rs"]
+#[path = "../src/random_varint.rs"]
 mod random_varint;
-use random_varint::*;
 
-const MIN_DECODE_BUFFER_LEN: usize = 4;
+use random_varint::*;
 
 #[test]
 fn random_roundtrip_scalar_scalar() {
@@ -35,28 +34,6 @@ fn all_same_single_byte_scalar_scalar() {
 #[test]
 fn all_same_single_byte_scalar_ssse3() {
     do_all_same_single_byte::<Scalar, x86::Ssse3>();
-}
-
-#[test]
-fn decode_cursor_random_decode_len_scalar() {
-    decode_in_chunks_random_decode_len::<Scalar>();
-}
-
-#[cfg(feature = "x86_ssse3")]
-#[test]
-fn decode_cursor_random_decode_len_ssse3() {
-    decode_in_chunks_random_decode_len::<x86::Ssse3>();
-}
-
-#[test]
-fn decode_cursor_every_decode_len_scalar() {
-    decode_in_chunks_every_decode_len::<Scalar>()
-}
-
-#[cfg(feature = "x86_ssse3")]
-#[test]
-fn decode_cursor_every_decode_len_ssse3() {
-    decode_in_chunks_every_decode_len::<x86::Ssse3>()
 }
 
 #[test]
@@ -196,107 +173,5 @@ fn do_all_same_single_byte<E: Encoder, D: Decoder>() {
 
             assert_eq!(&nums[..], &decoded[0..count]);
         }
-    }
-}
-
-fn decode_in_chunks_every_decode_len<D: Decoder>() {
-    let mut nums: Vec<u32> = Vec::new();
-    let mut encoded = Vec::new();
-    let mut decoded = Vec::new();
-    let mut decoded_accum = Vec::new();
-    let mut rng = rand::weak_rng();
-
-    for count in 0..100 {
-        nums.clear();
-        encoded.clear();
-        decoded.clear();
-
-        for i in RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(count) {
-            nums.push(i);
-        }
-
-        encoded.resize(count * 5, 0);
-        let encoded_len = encode::<Scalar>(&nums, &mut encoded);
-
-        let extra_slots = 100;
-
-        // try every legal decode length
-        for decode_len in MIN_DECODE_BUFFER_LEN..cmp::max(MIN_DECODE_BUFFER_LEN + 1, count + 1) {
-            decoded_accum.clear();
-            let mut cursor = DecodeCursor::new(&encoded[0..encoded_len], count);
-            while cursor.has_more() {
-                let garbage = rng.gen();
-                decoded.clear();
-                decoded.resize(count + extra_slots, garbage);
-                let nums_decoded = cursor.decode::<D>(&mut decoded[0..decode_len]);
-                // the chunk is correct
-                assert_eq!(&nums[decoded_accum.len()..(decoded_accum.len() + nums_decoded)],
-                           &decoded[0..nums_decoded]);
-                // beyond the chunk wasn't overwritten
-                for (i, &n) in decoded[nums_decoded..(count + extra_slots)].iter().enumerate() {
-                    assert_eq!(garbage as u32, n, "index {}", i);
-                }
-
-                // accumulate for later comparison
-                for &n in &decoded[0..nums_decoded] {
-                    decoded_accum.push(n);
-                }
-            }
-
-            assert_eq!(encoded_len, cursor.input_consumed());
-            assert_eq!(count, decoded_accum.len());
-            assert_eq!(&nums, &decoded_accum);
-        }
-    }
-}
-
-fn decode_in_chunks_random_decode_len<D: Decoder>() {
-    let mut nums: Vec<u32> = Vec::new();
-    let mut encoded = Vec::new();
-    let mut decoded = Vec::new();
-    let mut decoded_accum = Vec::new();
-    let mut rng = rand::weak_rng();
-    for _ in 0..10_000 {
-        nums.clear();
-        encoded.clear();
-        decoded.clear();
-        decoded_accum.clear();
-
-        let count = rng.gen_range(0, 500);
-
-        for i in RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(count) {
-            nums.push(i);
-        }
-
-        encoded.resize(count * 5, 0);
-        let encoded_len = encode::<Scalar>(&nums, &mut encoded);
-
-        // decode in several chunks, copying to accumulator
-        let extra_slots = 100;
-        let mut cursor = DecodeCursor::new(&encoded[0..encoded_len], count);
-        while cursor.has_more() {
-            let garbage = rng.gen();
-            decoded.clear();
-            decoded.resize(count + extra_slots, garbage);
-            let decode_len: usize = rng.gen_range(MIN_DECODE_BUFFER_LEN,
-                                                  cmp::max(MIN_DECODE_BUFFER_LEN + 1, count + 1));
-            let nums_decoded = cursor.decode::<D>(&mut decoded[0..decode_len]);
-            // the chunk is correct
-            assert_eq!(&nums[decoded_accum.len()..(decoded_accum.len() + nums_decoded)],
-                       &decoded[0..nums_decoded]);
-            // beyond the chunk wasn't overwritten
-            for (i, &n) in decoded[nums_decoded..(count + extra_slots)].iter().enumerate() {
-                assert_eq!(garbage as u32, n, "index {}", i);
-            }
-
-            // accumulate for later comparison
-            for &n in &decoded[0..nums_decoded] {
-                decoded_accum.push(n);
-            }
-        }
-
-        assert_eq!(encoded_len, cursor.input_consumed());
-        assert_eq!(count, decoded_accum.len());
-        assert_eq!(&nums[..], &decoded_accum[0..count]);
     }
 }

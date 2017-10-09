@@ -14,6 +14,7 @@ pub struct DecodeCursor<'a> {
 }
 
 impl<'a> DecodeCursor<'a> {
+    /// Create a new cursor.
     pub fn new(input: &'a [u8], count: usize) -> DecodeCursor<'a> {
         let shape = encoded_shape(count);
 
@@ -33,8 +34,7 @@ impl<'a> DecodeCursor<'a> {
     ///
     /// In other words, if you have 7 numbers remaining (a block of 4 and a partial block of 3), the
     /// only count you can skip is 4.
-    fn skip(&mut self, to_skip: usize) {
-        // TODO skip control bytes?
+    pub fn skip(&mut self, to_skip: usize) {
         assert_eq!(to_skip % 4, 0, "Must be a multiple of 4");
         let control_bytes_to_skip = to_skip / 4;
         assert!(self.control_bytes_read + control_bytes_to_skip
@@ -46,6 +46,7 @@ impl<'a> DecodeCursor<'a> {
 
         self.control_bytes_read += control_bytes_to_skip;
         self.encoded_bytes_read += skipped_encoded_len;
+        self.nums_decoded += to_skip;
     }
 
     /// Decode into the `output` buffer. The buffer must be at least of size 4.
@@ -120,5 +121,51 @@ impl<'a> DecodeCursor<'a> {
     /// Returns true iff there are more numbers to be decoded.
     pub fn has_more(&self) -> bool {
         self.nums_decoded < self.total_nums
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::*;
+
+    #[test]
+    #[should_panic(expected = "Must be a multiple of 4")]
+    fn panics_on_not_multiple_of_4() {
+        DecodeCursor::new(&vec![], 0).skip(3)
+    }
+
+    #[test]
+    #[should_panic(expected = "Can't skip past the end of complete control bytes")]
+    fn panics_on_exceeding_full_quads() {
+        let nums: Vec<u32> = (0..100).collect();
+        let mut encoded = Vec::new();
+        encoded.resize(nums.len() * 5, 0);
+
+        let encoded_len = encode::<Scalar>(&nums, &mut encoded);
+
+        DecodeCursor::new(&encoded[0..encoded_len], nums.len()).skip(104);
+    }
+
+    #[test]
+    fn skip_entire_enput_is_done() {
+        let nums: Vec<u32> = (0..100).collect();
+        let mut encoded = Vec::new();
+        encoded.resize(nums.len() * 5, 0);
+
+        let encoded_len = encode::<Scalar>(&nums, &mut encoded);
+        let mut cursor = DecodeCursor::new(&encoded[0..encoded_len], nums.len());
+
+        assert!(cursor.has_more());
+
+        cursor.skip(100);
+
+        assert!(!cursor.has_more());
+
+        let mut decoded: Vec<u32> = (0..100).map(|_| 0).collect();
+        // decoded has room...
+        assert_eq!(100, decoded.len());
+        // but nothing gets decoded into it
+        assert_eq!(0, cursor.decode::<Scalar>(&mut decoded[..]))
     }
 }
