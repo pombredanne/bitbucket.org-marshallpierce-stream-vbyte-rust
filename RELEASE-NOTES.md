@@ -1,4 +1,4 @@
-# Next
+# 0.3.0
 
 - `DecodeCursor` for efficiently navigating very large encoded datasets
 - x86 SSE4.1 encoder
