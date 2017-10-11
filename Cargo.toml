@@ -32,4 +32,3 @@ x86_sse41 = ["x86intrin"]
 [package.metadata.docs.rs]
 all-features = true
 rustc-args = ["-C", "target-feature=+ssse3,+sse4.1"]
-rustdoc-args = ["-C", "target-feature=+ssse3,+sse4.1"]
