@@ -1,6 +1,6 @@
 [package]
 name = "stream-vbyte"
-version = "0.3.0"
+version = "0.3.1"
 description = "Encode and decode numbers in the Stream VByte format"
 authors = ["Marshall Pierce <marshall@mpierce.org>"]
 homepage = "https://bitbucket.org/marshallpierce/stream-vbyte-rust"
@@ -32,3 +32,4 @@ x86_sse41 = ["x86intrin"]
 [package.metadata.docs.rs]
 all-features = true
 rustc-args = ["-C", "target-feature=+ssse3,+sse4.1"]
+rustdoc-args = ["-C", "target-feature=+ssse3,+sse4.1"]

@@ -1,3 +1,7 @@
+# 0.3.1
+
+- Build system changes
+
 # 0.3.0
 
 - `DecodeCursor` for efficiently navigating very large encoded datasets
