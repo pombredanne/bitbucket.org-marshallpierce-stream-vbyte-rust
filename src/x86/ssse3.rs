@@ -4,12 +4,12 @@ use std::cmp;
 
 use self::x86intrin::{sse2, ssse3, m128i};
 
-use super::tables;
+use super::super::{Decoder, tables};
 
 /// Decoder using SSSE3 instructions.
 pub struct Ssse3;
 
-impl super::Decoder for Ssse3 {
+impl Decoder for Ssse3 {
     fn decode_quads(control_bytes: &[u8], encoded_nums: &[u8], output: &mut [u32],
                     control_bytes_to_decode: usize) -> (usize, usize) {
         debug_assert!(control_bytes_to_decode <= output.len());
@@ -60,7 +60,7 @@ impl super::Decoder for Ssse3 {
 
 #[cfg(test)]
 mod tests {
-    use super::super::*;
+    use super::super::super::*;
     use super::*;
 
     #[test]
@@ -69,7 +69,6 @@ mod tests {
         let mut encoded = Vec::new();
         let mut decoded: Vec<u32> = Vec::new();
         encoded.resize(nums.len() * 5, 0xFF);
-        decoded.resize(nums.len(), 54321);
 
         encode::<Scalar>(&nums, &mut encoded);
 
@@ -78,6 +77,9 @@ mod tests {
         let encoded_nums = &encoded[16..];
 
         for control_bytes_to_decode in 0..14 {
+            decoded.clear();
+            decoded.resize(nums.len(), 54321);
+
             // requesting 13 or fewer control bytes decodes all requested bytes
             let (nums_decoded, bytes_read) = Ssse3::decode_quads(&control_bytes,
                                                                  &encoded_nums,
@@ -91,6 +93,9 @@ mod tests {
         }
 
         for control_bytes_to_decode in 14..17 {
+            decoded.clear();
+            decoded.resize(nums.len(), 54321);
+
             // requesting more than 13 gets capped to 13 because there may not be enough encoded
             // nums to read 16 bytes at a time
             let (nums_decoded, bytes_read) = Ssse3::decode_quads(&control_bytes,

@@ -253,8 +253,6 @@ fn do_decode_cursor_skip_every_allowable_len_between_decodes<D: Decoder>() {
                     // 1: decode a bit
                     let mut cursor = DecodeCursor::new(&encoded[0..encoded_len], count);
                     let initial_decoded_nums = cursor.decode::<D>(&mut decoded[0..initial_decode_len]);
-                    println!("count {}, initial decode len {}, skip {}, final decode len {}, decoded {}",
-                             count, initial_decode_len, skip_len, final_decode_len, initial_decoded_nums);
                     assert_eq!(&nums[0..initial_decoded_nums], &decoded[0..initial_decoded_nums]);
                     for (i, &n) in decoded[initial_decoded_nums..].iter().enumerate() {
                         assert_eq!(garbage, n, "index {}", i);

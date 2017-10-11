@@ -14,23 +14,47 @@ use std::iter;
 use stream_vbyte::*;
 
 #[bench]
-fn encode_rand_1k(b: &mut Bencher) {
-    do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000));
+fn encode_scalar_rand_1k(b: &mut Bencher) {
+    do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000), Scalar);
 }
 
 #[bench]
-fn encode_rand_1m(b: &mut Bencher) {
-    do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000 * 1000));
+fn encode_scalar_rand_1m(b: &mut Bencher) {
+    do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000 * 1000), Scalar);
+}
+
+#[cfg(feature = "x86_sse41")]
+#[bench]
+fn encode_sse41_rand_1k(b: &mut Bencher) {
+    do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000), x86::Sse41);
+}
+
+#[cfg(feature = "x86_sse41")]
+#[bench]
+fn encode_sse41_rand_1m(b: &mut Bencher) {
+    do_encode_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000 * 1000), x86::Sse41);
 }
 
 #[bench]
-fn encode_zeros_1k(b: &mut Bencher) {
-    do_encode_bench(b, iter::repeat(0).take(1000));
+fn encode_scalar_zeros_1k(b: &mut Bencher) {
+    do_encode_bench(b, iter::repeat(0).take(1000), Scalar);
 }
 
 #[bench]
-fn encode_zeros_1m(b: &mut Bencher) {
-    do_encode_bench(b, iter::repeat(0).take(1_000_000));
+fn encode_scalar_zeros_1m(b: &mut Bencher) {
+    do_encode_bench(b, iter::repeat(0).take(1_000_000), Scalar);
+}
+
+#[cfg(feature = "x86_sse41")]
+#[bench]
+fn encode_sse41_zeros_1k(b: &mut Bencher) {
+    do_encode_bench(b, iter::repeat(0).take(1000), x86::Sse41);
+}
+
+#[cfg(feature = "x86_sse41")]
+#[bench]
+fn encode_sse41_zeros_1m(b: &mut Bencher) {
+    do_encode_bench(b, iter::repeat(0).take(1_000_000), x86::Sse41);
 }
 
 #[bench]
@@ -119,7 +143,7 @@ fn skip_all_1m(b: &mut Bencher) {
     });
 }
 
-fn do_encode_bench<I: Iterator<Item=u32>>(b: &mut Bencher, iter: I) {
+fn do_encode_bench<I: Iterator<Item=u32>, E: Encoder>(b: &mut Bencher, iter: I, _encoder: E) {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
 
@@ -130,7 +154,7 @@ fn do_encode_bench<I: Iterator<Item=u32>>(b: &mut Bencher, iter: I) {
     encoded.resize(nums.len() * 5, 0);
 
     b.iter(|| {
-        let _ = stream_vbyte::encode::<Scalar>(&nums, &mut encoded);
+        let _ = stream_vbyte::encode::<E>(&nums, &mut encoded);
     });
 }
 

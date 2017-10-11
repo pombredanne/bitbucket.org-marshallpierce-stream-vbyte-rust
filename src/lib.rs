@@ -1,9 +1,57 @@
 //! Encode and decode `u32`s with the Stream VByte format.
 //!
+//! There are two traits, `Encoder` and `Decoder`, that allow you to choose what logic to use in the
+//! inner hot loops.
+//! 
+//! # The simple, pretty fast way
+//! 
+//! Use `Scalar` for your `Encoder` and `Decoder`. It will work on all hardware, and is fast enough
+//! that most people will probably never notice the time taken to encode/decode.
+//! 
+//! # The more complex, really fast way
+//! 
+//! If you can use nightly Rust (currently needed for SIMD) and you know which hardware you'll be
+//! running on, or you can add runtime detection of CPU features, you can choose to use an
+//! implementation that takes advantage of your hardware. Something like
+//! [raw-cpuid](https://crates.io/crates/raw-cpuid) will probably be useful for runtime detection.
+//! 
+//! Performance numbers are calculated on an E5-1650v3 on encoding/decoding 1 million random numbers
+//! at a time. You can run the benchmarks yourself to see how your hardware does.
+//! 
+//! Both `feature`s and `target_feature`s are used because `target_feature` is not in stable Rust
+//! yet and this library should remain usable by stable Rust, so non-stable-friendly things are
+//! hidden behind `feature`s.
+//! 
+//! ## Encoders
+//! 
+//! | Type           | Performance    | Hardware                                 | `target_feature` | `feature`   |
+//! | -------------- | ---------------| ---------------------------------------- | ---------------- | ----------- |
+//! | `Scalar`       | ≈140 million/s | All                                      | none             | none        |
+//! | `x86::Sse41`   | ≈1 billion/s   | x86 with SSE4.1 (Penryn and above, 2008) | `sse4.1`         | `x86_sse41` |
+//! 
+//! ## Decoders
+//! 
+//! | Type           | Performance    | Hardware                                   | `target_feature` | `feature`   |
+//! | -------------- | ---------------| ------------------------------------------ | ---------------- | ----------- |
+//! | `Scalar`       | ≈140 million/s | All                                        | none             | none        |
+//! | `x86::Ssse3`   | ≈2.7 billion/s | x86 with SSSE3 (Woodcrest and above, 2006) | `ssse3`          | `x86_ssse3` |
+//! 
+//! If you have a modern x86 and you want to use the all SIMD accelerated versions, you would use
+//! `target_feature` in a compiler invocation like this:
+//! 
+//! ```sh
+//! RUSTFLAGS='-C target-feature=+ssse3,+sse4.1' cargo ...
+//! ```
+//! 
+//! Meanwhile, `feature`s for your dependency on this crate are specified
+//! [in your project's Cargo.toml](http://doc.crates.io/manifest.html#the-features-section).
+//! 
+//! # Example
+//!
 //! ```
 //! use stream_vbyte::*;
 //!
-//! let nums: Vec<u32> = (0..12345).collect();
+//! let nums: Vec<u32> = (0..12_345).collect();
 //! let mut encoded_data = Vec::new();
 //! // make some space to encode into
 //! encoded_data.resize(5 * nums.len(), 0x0);
@@ -12,14 +60,35 @@
 //! let encoded_len = encode::<Scalar>(&nums, &mut encoded_data);
 //! println!("Encoded {} u32s into {} bytes", nums.len(), encoded_len);
 //!
+//! // decode all the numbers at once
 //! let mut decoded_nums = Vec::new();
 //! decoded_nums.resize(nums.len(), 0);
-//! // now decode
-//! decode::<Scalar>(&encoded_data, nums.len(), &mut decoded_nums);
-//!
+//! let bytes_decoded = decode::<Scalar>(&encoded_data, nums.len(), &mut decoded_nums);
 //! assert_eq!(nums, decoded_nums);
+//! assert_eq!(encoded_len, bytes_decoded);
 //!
+//! // or maybe you want to skip some of the numbers while decoding
+//! decoded_nums.clear();
+//! decoded_nums.resize(nums.len(), 0);
+//! let mut cursor = DecodeCursor::new(&encoded_data, nums.len());
+//! cursor.skip(10_000);
+//! let count = cursor.decode::<Scalar>(&mut decoded_nums);
+//! assert_eq!(12_345 - 10_000, count);
+//! assert_eq!(&nums[10_000..], &decoded_nums[0..count]);
+//! assert_eq!(encoded_len, cursor.input_consumed());
 //! ```
+//!
+//! # Panics
+//!
+//! If you use undersized slices (e.g. encoding 10 numbers into 5 bytes), you will get the normal
+//! slice bounds check panics.
+//!
+//! # Safety
+//!
+//! SIMD code uses unsafe internally because many of the SIMD intrinsics are unsafe.
+//!
+//! The `Scalar` codec does not use unsafe.
+//!
 //!
 extern crate byteorder;
 
@@ -30,41 +99,59 @@ mod tables;
 mod cursor;
 pub use cursor::DecodeCursor;
 
-#[cfg(feature = "x86_ssse3")]
+#[path="x86/x86.rs"]
 pub mod x86;
 
+/// Encode numbers to bytes.
 pub trait Encoder {
     /// Encode complete quads of input numbers.
+    ///
     /// `control_bytes` will be exactly as long as the number of complete 4-number quads in `input`.
-    /// Control bytes are written to `control_bytes` and encoded numbers to `encoded_nums`.
-    /// Returns the total bytes written to `encoded_nums`.
-    fn encode_quads(input: &[u32], control_bytes: &mut [u8], encoded_nums: &mut [u8]) -> usize;
+    ///
+    /// Control bytes are written to `control_bytes` and encoded numbers to `output`.
+    ///
+    /// Implementations may choose to encode fewer than the full provided input, but any writes done
+    /// must be for full quads.
+    ///
+    /// Implementations must not write to `output` outside of the area that will be populated by
+    /// encoded numbers when all control bytes are processed..
+    ///
+    /// Returns the number of numbers encoded and the number of bytes written to `output`.
+    fn encode_quads(input: &[u32], control_bytes: &mut [u8], output: &mut [u8]) -> (usize, usize);
 }
 
+/// Decode bytes to numbers.
 pub trait Decoder {
-    /// Decode encoded numbers in complete quads. Only control bytes that have all 4 lengths set
-    /// and their corresponding 4 encoded numbers will be provided (i.e. no trailing partial quad).
+    /// Decode encoded numbers in complete quads.
     ///
-    /// `control_bytes` is the control bytes that correspond to `encoded_nums`.
-    /// `output` is the buffer to write decoded numbers into.
-    /// `control_bytes_to_decode * 4` must be no greater than the length of `output`. It may
-    /// be greater than the number of control bytes remaining.
+    /// Only control bytes with 4 corresponding encoded numbers will be provided as input (i.e. no
+    /// trailing partial quad).
     ///
-    /// Implementations should decode up to `control_bytes_to_decode` control bytes, but may decode
+    /// `control_bytes` are the control bytes that correspond to `encoded_nums`.
+    ///
+    /// `output` is the buffer to write decoded numbers into, and must be at least
+    /// `control_bytes_to_decode * 4` in length.
+    ///
+    /// `control_bytes_to_decode * 4` may be greater than the number of control bytes remaining.
+    ///
+    /// Implementations may decode at most `control_bytes_to_decode` control bytes, but may decode
     /// fewer.
     ///
-    /// Returns the number of numbers decoded and the number of bytes read from
+    /// Implementations must not write to `output` outside of the area that will be populated by
+    /// decoded numbers when all control bytes are processed..
+    ///
+    /// Returns the number of numbers decoded into `output` and the number of bytes read from
     /// `encoded_nums`.
     fn decode_quads(control_bytes: &[u8], encoded_nums: &[u8], output: &mut [u32],
                     control_bytes_to_decode: usize) -> (usize, usize);
 }
 
-/// Regular ol' byte shuffling.
-/// Works on every platform, but it's not the quickest.
+/// Encoder/Decoder that works on every platform, at the cost of speed compared to the SIMD accelerated versions.
 pub struct Scalar;
 
 impl Encoder for Scalar {
-    fn encode_quads(input: &[u32], control_bytes: &mut [u8], encoded_nums: &mut [u8]) -> usize {
+    // This implementation encodes all provided input numbers.
+    fn encode_quads(input: &[u32], control_bytes: &mut [u8], encoded_nums: &mut [u8]) -> (usize, usize) {
         let mut bytes_written = 0;
         let mut nums_encoded = 0;
 
@@ -86,11 +173,12 @@ impl Encoder for Scalar {
             nums_encoded += 4;
         }
 
-        bytes_written
+        (nums_encoded, bytes_written)
     }
 }
 
 impl Decoder for Scalar {
+    // This implementation decodes all provided encoded data.
     fn decode_quads(control_bytes: &[u8], encoded_nums: &[u8], output: &mut [u32],
                     control_bytes_to_decode: usize) -> (usize, usize) {
         debug_assert!(control_bytes_to_decode * 4 <= output.len());
@@ -135,9 +223,21 @@ pub fn encode<E: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
 
     let (control_bytes, encoded_bytes) = output.split_at_mut(shape.control_bytes_len);
 
-    let mut num_bytes_written = E::encode_quads(&input[..],
-                                                &mut control_bytes[0..shape.complete_control_bytes_len],
-                                                &mut encoded_bytes[..]);
+    let (nums_encoded, mut num_bytes_written) = E::encode_quads(&input[..],
+                                                                    &mut control_bytes[0..shape.complete_control_bytes_len],
+                                                                    &mut encoded_bytes[..]);
+
+    // may be some input left, use Scalar to finish it
+    let control_bytes_written = nums_encoded / 4;
+
+    let (more_nums_encoded, more_bytes_written) =
+        Scalar::encode_quads(&input[nums_encoded..],
+                             &mut control_bytes[control_bytes_written..shape.complete_control_bytes_len],
+                             &mut encoded_bytes[num_bytes_written..]);
+
+    num_bytes_written += more_bytes_written;
+
+    debug_assert_eq!(shape.complete_control_bytes_len * 4, nums_encoded + more_nums_encoded);
 
     // last control byte, if there were leftovers
     if shape.leftover_numbers > 0 {
@@ -159,8 +259,9 @@ pub fn encode<E: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
     control_bytes.len() + num_bytes_written
 }
 
-/// Decode `count` numbers from `input`, writing them to `output`. The `count` must be the same
-/// as the number of items originally encoded.
+/// Decode `count` numbers from `input`, writing them to `output`.
+///
+/// The `count` must be the same as the number of items originally encoded.
 ///
 /// `output` must be at least of size 4, and must be large enough for all `count` numbers.
 ///

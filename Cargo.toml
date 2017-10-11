@@ -25,5 +25,10 @@ debug = true
 [features]
 default = []
 
-# Expose SSSE3 SIMD
+# Expose SIMD features
 x86_ssse3 = ["x86intrin"]
+x86_sse41 = ["x86intrin"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustc-args = ["-C", "target-feature=+ssse3,+sse4.1"]

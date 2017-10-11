@@ -2,6 +2,7 @@ use std::cmp;
 
 use super::{Decoder, Scalar, encoded_shape, EncodedShape, decode_num_scalar, cumulative_encoded_len};
 
+/// Decode in user-selectable batch sizes. Also allows skipping numbers that you don't care about.
 #[derive(Debug)]
 pub struct DecodeCursor<'a> {
     control_bytes: &'a [u8],
@@ -30,10 +31,11 @@ impl<'a> DecodeCursor<'a> {
     }
 
     /// Skip `to_skip` numbers. `to_skip` must be a multiple of 4, and must not be greater than the
-    /// count of remaining numbers that are in complete blocks of 4.
+    /// count of remaining numbers that are in complete blocks of 4. In other words, if you have
+    /// 7 numbers remaining (a block of 4 and a partial block of 3), the only count you can skip is
+    /// 4.
     ///
-    /// In other words, if you have 7 numbers remaining (a block of 4 and a partial block of 3), the
-    /// only count you can skip is 4.
+    /// Skipping numbers is faster than decoding them.
     pub fn skip(&mut self, to_skip: usize) {
         assert_eq!(to_skip % 4, 0, "Must be a multiple of 4");
         let control_bytes_to_skip = to_skip / 4;
