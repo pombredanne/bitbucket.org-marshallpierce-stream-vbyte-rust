@@ -58,7 +58,8 @@ fn decode_cursor_skip_every_allowable_len_between_decodes_ssse3() {
     do_decode_cursor_skip_every_allowable_len_between_decodes::<x86::Ssse3>();
 }
 
-fn do_decode_cursor_every_decode_len<D: Decoder>() {
+fn do_decode_cursor_every_decode_len<D: Decoder>()
+    where for<'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -118,7 +119,8 @@ fn do_decode_cursor_every_decode_len<D: Decoder>() {
     }
 }
 
-fn do_decode_cursor_random_decode_len<D: Decoder>() {
+fn do_decode_cursor_random_decode_len<D: Decoder>()
+    where for <'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -169,7 +171,8 @@ fn do_decode_cursor_random_decode_len<D: Decoder>() {
     }
 }
 
-fn do_decode_cursor_skip_every_allowable_len_from_start<D: Decoder>() {
+fn do_decode_cursor_skip_every_allowable_len_from_start<D: Decoder>()
+    where for <'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -215,7 +218,8 @@ fn do_decode_cursor_skip_every_allowable_len_from_start<D: Decoder>() {
     }
 }
 
-fn do_decode_cursor_skip_every_allowable_len_between_decodes<D: Decoder>() {
+fn do_decode_cursor_skip_every_allowable_len_between_decodes<D: Decoder>()
+    where for <'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();

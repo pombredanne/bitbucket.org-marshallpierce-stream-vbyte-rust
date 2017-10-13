@@ -84,7 +84,8 @@ fn encode_sse41_compare_reference_impl() {
     do_compare_reference_data::<x86::Sse41>()
 }
 
-fn do_random_roundtrip<E: Encoder, D: Decoder>() {
+fn do_random_roundtrip<E: Encoder, D: Decoder>()
+    where for <'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -124,7 +125,8 @@ fn do_random_roundtrip<E: Encoder, D: Decoder>() {
     }
 }
 
-fn do_all_same_single_byte<E: Encoder, D: Decoder>() {
+fn do_all_same_single_byte<E: Encoder, D: Decoder>()
+    where for <'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded: Vec<u8> = Vec::new();
     let mut decoded: Vec<u32> = Vec::new();

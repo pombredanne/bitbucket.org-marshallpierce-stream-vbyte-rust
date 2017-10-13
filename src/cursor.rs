@@ -1,6 +1,6 @@
 use std::cmp;
 
-use super::{Decoder, Scalar, encoded_shape, EncodedShape, decode_num_scalar, cumulative_encoded_len};
+use super::{Decoder, DecodeSink, Scalar, encoded_shape, EncodedShape, SliceDecodeSink, decode_num_scalar, cumulative_encoded_len};
 
 /// Decode in user-selectable batch sizes. Also allows skipping numbers that you don't care about.
 #[derive(Debug)]
@@ -55,7 +55,9 @@ impl<'a> DecodeCursor<'a> {
     ///
     /// Returns the number of numbers decoded by this invocation, which may be less than the size
     /// of the buffer.
-    pub fn decode<D: Decoder>(&mut self, output: &mut [u32]) -> usize {
+    pub fn decode<D: Decoder>(&mut self, output: &mut [u32]) -> usize
+        where for <'b> SliceDecodeSink<'b>: DecodeSink<<D as Decoder>::DecodedQuad> {
+        // Use '_ lifetime when issue 44524 hits stable
         debug_assert!(output.len() >= 4);
         let start_nums_decoded = self.nums_decoded;
 
@@ -68,14 +70,14 @@ impl<'a> DecodeCursor<'a> {
         let (primary_nums_decoded, primary_bytes_read) =
             D::decode_quads(complete_control_bytes,
                             &self.encoded_nums[self.encoded_bytes_read..],
-                            output,
-                            control_bytes_to_decode);
+                            control_bytes_to_decode,
+                            &mut SliceDecodeSink::new(output));
 
         self.encoded_bytes_read += primary_bytes_read;
         self.control_bytes_read += primary_nums_decoded / 4;
         self.nums_decoded += primary_nums_decoded;
 
-        let mut remaining_output = &mut output[primary_nums_decoded..];
+        let remaining_output = &mut output[primary_nums_decoded..];
         // handle any remaining full quads if the provided Decoder did not finish the
         // remaining bytes in output buffer, or remaining control bytes, whichever is smaller
         let control_bytes_limit = cmp::min(remaining_output.len() / 4,
@@ -83,8 +85,8 @@ impl<'a> DecodeCursor<'a> {
         let (more_nums_decoded, more_bytes_read) = Scalar::decode_quads(
             &self.control_bytes[self.control_bytes_read..self.encoded_shape.complete_control_bytes_len],
             &self.encoded_nums[self.encoded_bytes_read..],
-            &mut remaining_output,
-            control_bytes_limit);
+            control_bytes_limit,
+            &mut SliceDecodeSink::new(remaining_output));
 
         self.encoded_bytes_read += more_bytes_read;
         self.control_bytes_read += more_nums_decoded / 4;
@@ -100,12 +102,13 @@ impl<'a> DecodeCursor<'a> {
             debug_assert_eq!(self.control_bytes_read, self.encoded_shape.complete_control_bytes_len);
 
             let control_byte = self.control_bytes[self.encoded_shape.complete_control_bytes_len];
+            let mut sink = SliceDecodeSink::new(remaining_output);
 
             for i in 0..self.encoded_shape.leftover_numbers {
                 // first num's length in low 2 bits, last in high 2 bits
                 let bitmask = 0x03 << (i * 2);
                 let len = ((control_byte & bitmask) >> (i * 2)) as usize + 1;
-                remaining_output[i] = decode_num_scalar(len, &self.encoded_nums[self.encoded_bytes_read..]);
+                sink.on_number(decode_num_scalar(len, &self.encoded_nums[self.encoded_bytes_read..]), i);
                 self.nums_decoded += 1;
                 self.encoded_bytes_read += len;
             }
