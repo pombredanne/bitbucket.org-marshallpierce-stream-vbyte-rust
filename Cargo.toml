@@ -1,13 +1,13 @@
 [package]
 name = "stream-vbyte"
 version = "0.3.2"
-description = "Encode and decode numbers in the Stream VByte format"
+description = "Compress and decompress numbers efficiently in the Stream VByte encoding"
 authors = ["Marshall Pierce <marshall@mpierce.org>"]
 homepage = "https://bitbucket.org/marshallpierce/stream-vbyte-rust"
 repository = "https://bitbucket.org/marshallpierce/stream-vbyte-rust"
 readme = 'README.md'
 keywords = ["varint", "stream-vbyte"]
-categories = ["encoding"]
+categories = ["encoding", "compression"]
 license-file = "LICENSE.txt"
 
 [dependencies]
