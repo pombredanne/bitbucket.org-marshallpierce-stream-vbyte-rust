@@ -85,7 +85,7 @@ fn encode_sse41_compare_reference_impl() {
 }
 
 fn do_random_roundtrip<E: Encoder, D: Decoder>()
-    where for <'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
+    where for <'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -126,13 +126,13 @@ fn do_random_roundtrip<E: Encoder, D: Decoder>()
 }
 
 fn do_all_same_single_byte<E: Encoder, D: Decoder>()
-    where for <'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
+    where for <'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded: Vec<u8> = Vec::new();
     let mut decoded: Vec<u32> = Vec::new();
 
     // for a bunch of lengths
-    for count in (0..100).map(|l| l * 7) {
+    for count in 0..200 {
         // for every possible single byte
         for num in (0..256).map(|b| b as u8) {
             nums.clear();
@@ -142,7 +142,7 @@ fn do_all_same_single_byte<E: Encoder, D: Decoder>()
             let garbage = num.overflowing_add(1).0;
             assert_ne!(garbage, num);
 
-            // 1 byte for each number, + 1 control byte for every 4 zeroes
+            // 1 byte for each number, + 1 control byte for every 4 numbers (rounded up)
             let control_byte_len = (count + 3) / 4;
             let encoded_len = count + control_byte_len;
 

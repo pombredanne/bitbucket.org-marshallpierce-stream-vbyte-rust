@@ -1,8 +1,14 @@
-//! Encode and decode `u32`s with the Stream VByte format.
+//! Encode `u32`s to bytes and decode them back again with the Stream VByte format.
+//!
+//! To encode all your numbers to a `&[u8]`, or decode all your bytes to a `&[u32]`, see `encode()`
+//! and `decode()` respectively. For more sophisticated decoding functionality, see `DecodeCursor`.
 //!
 //! There are two traits, `Encoder` and `Decoder`, that allow you to choose what logic to use in the
 //! inner hot loops.
-//! 
+//!
+//! A terminology note - Stream VByte groups encoded numbers into clusters of four, which are
+//! referred to as "quads" in this project.
+//!
 //! # The simple, pretty fast way
 //! 
 //! Use `Scalar` for your `Encoder` and `Decoder`. It will work on all hardware, and is fast enough
@@ -45,8 +51,10 @@
 //! 
 //! Meanwhile, `feature`s for your dependency on this crate are specified
 //! [in your project's Cargo.toml](http://doc.crates.io/manifest.html#the-features-section).
-//! 
+//!
 //! # Example
+//!
+//! Encode some numbers to bytes, then decode them in different ways.
 //!
 //! ```
 //! use stream_vbyte::*;
@@ -72,7 +80,7 @@
 //! decoded_nums.resize(nums.len(), 0);
 //! let mut cursor = DecodeCursor::new(&encoded_data, nums.len());
 //! cursor.skip(10_000);
-//! let count = cursor.decode::<Scalar>(&mut decoded_nums);
+//! let count = cursor.decode_slice::<Scalar>(&mut decoded_nums);
 //! assert_eq!(12_345 - 10_000, count);
 //! assert_eq!(&nums[10_000..], &decoded_nums[0..count]);
 //! assert_eq!(encoded_len, cursor.input_consumed());
@@ -85,11 +93,16 @@
 //!
 //! # Safety
 //!
-//! SIMD code uses unsafe internally because many of the SIMD intrinsics are unsafe.
+//! SIMD code uses unsafe internally because many of the SIMD intrinsics are unsafe. However, SIMD
+//! intrinsics are used only on appropriately sized slices to essentially manually apply
+//! slice index checking before use.
+//!
+//! Since this is human-maintained code, it could do the bounds checking incorrectly, of course. To
+//! mitigate those risks, there are various forms of randomized testing in the test suite to shake
+//! out any lurking bugs.
 //!
 //! The `Scalar` codec does not use unsafe.
-//!
-//!
+
 extern crate byteorder;
 
 use std::cmp;
@@ -136,36 +149,66 @@ pub trait Decoder {
     ///
     /// `control_bytes` are the control bytes that correspond to `encoded_nums`.
     ///
-    /// `control_bytes_to_decode * 4` may be greater than the number of control bytes remaining.
+    /// `max_control_bytes_to_decode` may be greater than the number of control bytes remaining, in
+    /// which case only the remaining control bytes will be decoded.
     ///
-    /// Implementations may decode at most `control_bytes_to_decode` control bytes, but may decode
+    /// Implementations may decode at most `max_control_bytes_to_decode` control bytes, but may decode
     /// fewer.
     ///
-    /// Returns the number of numbers decoded and the number of bytes read from
-    /// `encoded_nums`.
-    fn decode_quads<S: DecodeSink<Self::DecodedQuad>>(control_bytes: &[u8], encoded_nums: &[u8],
-                                                      control_bytes_to_decode: usize, sink: &mut S) -> (usize, usize);
+    /// `nums_already_decoded` is the number of numbers that have already been decoded in the
+    /// `DecodeCursor.decode` invocation.
+    ///
+    /// Returns a tuple of the number of numbers decoded (always a multiple of 4; at most
+    /// `4 * max_control_bytes_to_decode`) and the number of bytes read from `encoded_nums`.
+    fn decode_quads<S: DecodeQuadSink<Self::DecodedQuad>>(control_bytes: &[u8],
+                                                          encoded_nums: &[u8],
+                                                          max_control_bytes_to_decode: usize,
+                                                          nums_already_decoded: usize,
+                                                          sink: &mut S) -> (usize, usize);
 }
 
-/// Receives numbers decoded by a Decoder.
-pub trait DecodeSink<T> {
-    fn on_quad(&mut self, quad: T, nums_decoded: usize);
+/// Receives numbers decoded via a Decoder in `DecodeCursor.decode_sink()`.
+///
+/// Since stream-vbyte is oriented around groups of 4 numbers, some decoders will expose decoded
+/// numbers in some decoder-specific datatype. Or, if that is not applicable for a particular
+/// `Decoder` implementation, `()` will be used, and all decoded numbers will instead be passed to
+/// `DecodeSingleSink.on_number()`.
+pub trait DecodeQuadSink<T>: DecodeSingleSink {
 
+    /// `nums_decoded` is the number of numbers that have already been decoded before this quad
+    /// in the current invocation of `DecodeCursor.decode_sink()`.
+    fn on_quad(&mut self, quad: T, nums_decoded: usize);
+}
+
+/// Receives numbers decoded via a Decoder in `DecodeCursor.decode_sink()` that weren't handed to
+/// `DecodeQuadSink.on_quad()`, whether because the `Decoder` implementation doesn't have a natural
+/// quad representation, or because the numbers are part of a trailing partial quad.
+pub trait DecodeSingleSink {
+    /// `nums_decoded` is the number of numbers that have already been decoded before this number
+    /// in the current invocation of `DecodeCursor.decode_sink()`.
     fn on_number(&mut self, num: u32, nums_decoded: usize);
 }
 
 /// A sink for writing to a slice.
-///
-/// `output` must be big enough for all complete quads in the input to be written to.
 pub struct SliceDecodeSink<'a> {
     output: &'a mut [u32]
 }
 
 impl<'a> SliceDecodeSink<'a> {
+    /// Create a new sink that wraps a slice.
+    ///
+    /// `output` must be at least as big as the
     fn new(output: &'a mut [u32]) -> SliceDecodeSink<'a> {
         SliceDecodeSink {
             output
         }
+    }
+}
+
+impl<'a> DecodeSingleSink for SliceDecodeSink<'a> {
+    #[inline]
+    fn on_number(&mut self, num: u32, nums_decoded: usize) {
+        self.output[nums_decoded] = num;
     }
 }
 
@@ -229,10 +272,10 @@ pub fn encode<E: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
 ///
 /// Returns the number of bytes read from `input`.
 pub fn decode<D: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usize
-    where for <'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
+    where for <'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
     let mut cursor = DecodeCursor::new(&input, count);
 
-    assert_eq!(count, cursor.decode::<D>(output), "output buffer was not large enough");
+    assert_eq!(count, cursor.decode_slice::<D>(output), "output buffer was not large enough");
 
     cursor.input_consumed()
 }

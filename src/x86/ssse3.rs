@@ -4,7 +4,7 @@ use std::cmp;
 
 use self::x86intrin::{sse2, ssse3, m128i};
 
-use super::super::{Decoder, DecodeSink, SliceDecodeSink, tables};
+use super::super::{Decoder, DecodeQuadSink, SliceDecodeSink, tables};
 
 /// Decoder using SSSE3 instructions.
 pub struct Ssse3;
@@ -12,10 +12,13 @@ pub struct Ssse3;
 impl Decoder for Ssse3 {
     type DecodedQuad = m128i;
 
-    fn decode_quads<S: DecodeSink<Self::DecodedQuad>>(control_bytes: &[u8], encoded_nums: &[u8],
-                                                      control_bytes_to_decode: usize, sink: &mut S) -> (usize, usize) {
+    fn decode_quads<S: DecodeQuadSink<Self::DecodedQuad>>(control_bytes: &[u8],
+                                                          encoded_nums: &[u8],
+                                                          control_bytes_to_decode: usize,
+                                                          nums_already_decoded: usize,
+                                                          sink: &mut S) -> (usize, usize) {
         let mut bytes_read: usize = 0;
-        let mut nums_decoded: usize = 0;
+        let mut nums_decoded: usize = nums_already_decoded;
 
         // Decoding reads 16 bytes at a time from input, so we won't be able to read the last few
         // control byte's worth because they may be encoded at 1 byte per number, so we need 3
@@ -51,22 +54,18 @@ impl Decoder for Ssse3 {
             nums_decoded += 4;
         }
 
-        (nums_decoded, bytes_read)
+        (nums_decoded - nums_already_decoded, bytes_read)
     }
 }
 
 /// Used for SSSE3 decoding.
-impl<'a> DecodeSink<m128i> for SliceDecodeSink<'a> {
+impl<'a> DecodeQuadSink<m128i> for SliceDecodeSink<'a> {
     #[inline]
     fn on_quad(&mut self, quad: m128i, nums_decoded: usize) {
         unsafe {
-            // using slice size to make sure it's ok to write 16 bytes = 4 u32s
+            // using slice size to make sure it's ok to write 4 u32s
             sse2::mm_storeu_si128(self.output[nums_decoded..(nums_decoded + 4)].as_ptr() as *mut m128i, quad)
         }
-    }
-
-    fn on_number(&mut self, num: u32, nums_decoded: usize) {
-        self.output[nums_decoded] = num
     }
 }
 
@@ -96,6 +95,7 @@ mod tests {
             let (nums_decoded, bytes_read) = Ssse3::decode_quads(&control_bytes,
                                                                  &encoded_nums,
                                                                  control_bytes_to_decode,
+                                                                 0,
                                                                  &mut SliceDecodeSink::new(&mut decoded));
             assert_eq!(control_bytes_to_decode * 4, nums_decoded);
             assert_eq!(cumulative_encoded_len(&control_bytes[0..control_bytes_to_decode]),
@@ -113,6 +113,7 @@ mod tests {
             let (nums_decoded, bytes_read) = Ssse3::decode_quads(&control_bytes,
                                                                  &encoded_nums,
                                                                  control_bytes_to_decode,
+                                                                 0,
                                                                  &mut SliceDecodeSink::new(&mut decoded));
             assert_eq!(13 * 4, nums_decoded);
             assert_eq!(cumulative_encoded_len(&control_bytes[0..(nums_decoded / 4)]),

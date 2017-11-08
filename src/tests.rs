@@ -196,7 +196,7 @@ fn decoder_honors_nums_to_decode_ssse3() {
 }
 
 fn decoder_honors_nums_to_decode<D: Decoder>(control_byte_limit_fudge_factor: usize)
-    where for <'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
+    where for <'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -227,6 +227,7 @@ fn decoder_honors_nums_to_decode<D: Decoder>(control_byte_limit_fudge_factor: us
         let (nums_decoded, bytes_read) = D::decode_quads(&control_bytes,
                                                          &encoded_nums,
                                                          control_bytes_to_decode,
+                                                         0,
                                                          &mut SliceDecodeSink::new(&mut decoded));
 
         let nums_to_decode = control_bytes_to_decode * 4;
