@@ -1,6 +1,6 @@
 use std::cmp;
 
-use super::{decode_num_scalar, encode_num_scalar, Encoder, Decoder, DecodeSink, SliceDecodeSink, tables};
+use super::{decode_num_scalar, encode_num_scalar, Encoder, Decoder, DecodeQuadSink, SliceDecodeSink, tables};
 
 /// Encoder/Decoder that works on every platform, at the cost of speed compared to the SIMD accelerated versions.
 pub struct Scalar;
@@ -39,10 +39,13 @@ impl Decoder for Scalar {
     type DecodedQuad = ();
 
     // This implementation decodes all provided encoded data.
-    fn decode_quads<S: DecodeSink<Self::DecodedQuad>>(control_bytes: &[u8], encoded_nums: &[u8],
-                                                      control_bytes_to_decode: usize, sink: &mut S) -> (usize, usize) {
+    fn decode_quads<S: DecodeQuadSink<Self::DecodedQuad>>(control_bytes: &[u8],
+                                                          encoded_nums: &[u8],
+                                                          control_bytes_to_decode: usize,
+                                                          nums_already_decoded: usize,
+                                                          sink: &mut S) -> (usize, usize) {
         let mut bytes_read: usize = 0;
-        let mut nums_decoded: usize = 0;
+        let mut nums_decoded: usize = nums_already_decoded;
         let control_byte_limit = cmp::min(control_bytes.len(), control_bytes_to_decode);
 
         for &control_byte in control_bytes[0..control_byte_limit].iter() {
@@ -61,17 +64,12 @@ impl Decoder for Scalar {
             nums_decoded += 4;
         }
 
-        (nums_decoded, bytes_read)
+        (nums_decoded - nums_already_decoded, bytes_read)
     }
 }
 
-impl<'a> DecodeSink<()> for SliceDecodeSink<'a> {
-    fn on_quad(&mut self, _quad: (), _nums_decoded: usize) {
-        unreachable!();
-    }
-
-    #[inline]
-    fn on_number(&mut self, num: u32, nums_decoded: usize) {
-        self.output[nums_decoded] = num;
+impl<'a> DecodeQuadSink<()> for SliceDecodeSink<'a> {
+    fn on_quad(&mut self, _: (), _: usize) {
+        unreachable!()
     }
 }

@@ -4,6 +4,9 @@ extern crate stream_vbyte;
 extern crate rand;
 extern crate test;
 
+#[cfg(feature = "x86_ssse3")]
+extern crate x86intrin;
+
 use self::test::Bencher;
 
 use self::rand::Rng;
@@ -80,25 +83,36 @@ fn decode_ssse3_rand_1m(b: &mut Bencher) {
 }
 
 #[bench]
-fn decode_cursor_scalar_rand_1k(b: &mut Bencher) {
-    do_decode_cursor_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000), Scalar);
+fn decode_cursor_slice_scalar_rand_1k(b: &mut Bencher) {
+    do_decode_cursor_slice_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000), Scalar);
 }
 
 #[cfg(feature = "x86_ssse3")]
 #[bench]
-fn decode_cursor_ssse3_rand_1k(b: &mut Bencher) {
-    do_decode_cursor_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000), x86::Ssse3);
+fn decode_cursor_slice_ssse3_rand_1k(b: &mut Bencher) {
+    do_decode_cursor_slice_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1000), x86::Ssse3);
 }
 
 #[bench]
-fn decode_cursor_scalar_rand_1m(b: &mut Bencher) {
-    do_decode_cursor_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1_000_000), Scalar);
+fn decode_cursor_slice_scalar_rand_1m(b: &mut Bencher) {
+    do_decode_cursor_slice_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1_000_000), Scalar);
 }
 
 #[cfg(feature = "x86_ssse3")]
 #[bench]
-fn decode_cursor_ssse3_rand_1m(b: &mut Bencher) {
-    do_decode_cursor_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1_000_000), x86::Ssse3);
+fn decode_cursor_slice_ssse3_rand_1m(b: &mut Bencher) {
+    do_decode_cursor_slice_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1_000_000), x86::Ssse3);
+}
+
+#[bench]
+fn decode_cursor_sink_no_op_scalar_rand_1m(b: &mut Bencher) {
+    do_decode_cursor_sink_no_op_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1_000_000), Scalar);
+}
+
+#[cfg(feature = "x86_ssse3")]
+#[bench]
+fn decode_cursor_sink_no_op_ssse3_rand_1m(b: &mut Bencher) {
+    do_decode_cursor_sink_no_op_bench(b, RandomVarintEncodedLengthIter::new(rand::weak_rng()).take(1_000_000), x86::Ssse3);
 }
 
 #[bench]
@@ -161,7 +175,7 @@ fn do_encode_bench<I: Iterator<Item=u32>, E: Encoder>(b: &mut Bencher, iter: I, 
 // take a decoder param to save us some typing -- type inference won't work if you only specify some
 // of the generic types
 fn do_decode_bench<I: Iterator<Item=u32>, D: Decoder>(b: &mut Bencher, iter: I, _decoder: D)
-    where for <'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
+    where for <'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -179,8 +193,8 @@ fn do_decode_bench<I: Iterator<Item=u32>, D: Decoder>(b: &mut Bencher, iter: I, 
     });
 }
 
-fn do_decode_cursor_bench<I: Iterator<Item=u32>, D: Decoder>(b: &mut Bencher, iter: I, _decoder: D)
-    where for <'a> SliceDecodeSink<'a>: DecodeSink<<D as Decoder>::DecodedQuad> {
+fn do_decode_cursor_slice_bench<I: Iterator<Item=u32>, D: Decoder>(b: &mut Bencher, iter: I, _decoder: D)
+    where for <'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -195,7 +209,26 @@ fn do_decode_cursor_bench<I: Iterator<Item=u32>, D: Decoder>(b: &mut Bencher, it
     decoded.resize(nums.len(), 0);
     b.iter(|| {
         let mut cursor = DecodeCursor::new(&encoded, nums.len());
-        cursor.decode::<D>(&mut decoded);
+        cursor.decode_slice::<D>(&mut decoded);
+    })
+}
+
+fn do_decode_cursor_sink_no_op_bench<I: Iterator<Item=u32>, D: Decoder>(b: &mut Bencher, iter: I, _decoder: D)
+    where NoOpSink: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+    let mut nums: Vec<u32> = Vec::new();
+    let mut encoded = Vec::new();
+
+    for i in iter {
+        nums.push(i);
+    }
+
+    encoded.resize(nums.len() * 5, 0);
+    let _ = stream_vbyte::encode::<Scalar>(&nums, &mut encoded);
+
+    b.iter(|| {
+        let mut cursor = DecodeCursor::new(&encoded, nums.len());
+        let mut sink = NoOpSink;
+        cursor.decode_sink::<D, _>(&mut sink, nums.len());
     })
 }
 
@@ -231,3 +264,19 @@ impl<R: Rng> Iterator for RandomVarintEncodedLengthIter<R> {
         Some(value_range.ind_sample(&mut self.rng))
     }
 }
+
+struct NoOpSink;
+
+impl DecodeSingleSink for NoOpSink {
+    fn on_number(&mut self, _num: u32, _nums_decoded: usize) {}
+}
+
+impl DecodeQuadSink<()> for NoOpSink {
+    fn on_quad(&mut self, _quad: (), _nums_decoded: usize) {}
+}
+
+#[cfg(feature = "x86_ssse3")]
+impl DecodeQuadSink<x86intrin::m128i> for NoOpSink {
+    fn on_quad(&mut self, _quad: x86intrin::m128i, _nums_decoded: usize) {}
+}
+
