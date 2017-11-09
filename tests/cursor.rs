@@ -1,5 +1,5 @@
-extern crate stream_vbyte;
 extern crate rand;
+extern crate stream_vbyte;
 
 #[cfg(feature = "x86_ssse3")]
 extern crate x86intrin;
@@ -73,14 +73,20 @@ fn decode_cursor_slice_input_only_partial_quad_decodes_all_ssse3() {
 }
 
 #[test]
-fn decode_cursor_sink_decode_entire_input_emits_entire_input_including_trailing_partial_quad_scalar() {
-    do_decode_cursor_sink_decode_entire_input_emits_entire_input_including_trailing_partial_quad::<Scalar>()
+fn decode_cursor_sink_decode_entire_input_emits_entire_input_including_trailing_partial_quad_scalar(
+) {
+    do_decode_cursor_sink_decode_entire_input_emits_entire_input_including_trailing_partial_quad::<
+        Scalar,
+    >()
 }
 
 #[cfg(feature = "x86_ssse3")]
 #[test]
-fn decode_cursor_sink_decode_entire_input_emits_entire_input_including_trailing_partial_quad_ssse3() {
-    do_decode_cursor_sink_decode_entire_input_emits_entire_input_including_trailing_partial_quad::<x86::Ssse3>()
+fn decode_cursor_sink_decode_entire_input_emits_entire_input_including_trailing_partial_quad_ssse3()
+{
+    do_decode_cursor_sink_decode_entire_input_emits_entire_input_including_trailing_partial_quad::<
+        x86::Ssse3,
+    >()
 }
 
 #[test]
@@ -91,7 +97,9 @@ fn decode_cursor_sink_decode_partial_input_from_beginning_emits_complete_quads_o
 #[cfg(feature = "x86_ssse3")]
 #[test]
 fn decode_cursor_sink_decode_partial_input_from_beginning_emits_complete_quads_only_ssse3() {
-    do_decode_cursor_sink_decode_partial_input_from_beginning_emits_complete_quads_only::<x86::Ssse3>()
+    do_decode_cursor_sink_decode_partial_input_from_beginning_emits_complete_quads_only::<
+        x86::Ssse3,
+    >()
 }
 
 #[test]
@@ -117,13 +125,15 @@ fn decode_cursor_sink_decode_in_chunks_smaller_than_first_quad_decodes_0_nums_ss
 }
 
 #[test]
-fn decode_cursor_sink_decode_final_chunk_partially_includes_leftovers_decodes_only_complete_quads_scalar() {
+fn decode_cursor_sink_decode_final_chunk_partially_includes_leftovers_decodes_only_complete_quads_scalar(
+) {
     do_decode_cursor_sink_decode_final_chunk_partially_includes_leftovers_decodes_only_complete_quads::<Scalar>()
 }
 
 #[cfg(feature = "x86_ssse3")]
 #[test]
-fn decode_cursor_sink_decode_final_chunk_partially_includes_leftovers_decodes_only_complete_quads_ssse3() {
+fn decode_cursor_sink_decode_final_chunk_partially_includes_leftovers_decodes_only_complete_quads_ssse3(
+) {
     do_decode_cursor_sink_decode_final_chunk_partially_includes_leftovers_decodes_only_complete_quads::<x86::Ssse3>()
 }
 
@@ -139,7 +149,9 @@ fn decode_cursor_sink_decode_after_finishing_input_decodes_0_numbers_ssse3() {
 }
 
 fn do_decode_cursor_slice_every_decode_len<D: Decoder>()
-    where for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -172,15 +184,25 @@ fn do_decode_cursor_slice_every_decode_len<D: Decoder>()
                 if cursor.has_more() {
                     // if we're in the middle somewhere, we shouldn't fall short by any more than 3
                     // (partial quad size)
-                    assert!(decode_len - nums_decoded <= 3, "{} - {} = {}",
-                            decode_len, nums_decoded, decode_len - nums_decoded);
+                    assert!(
+                        decode_len - nums_decoded <= 3,
+                        "{} - {} = {}",
+                        decode_len,
+                        nums_decoded,
+                        decode_len - nums_decoded
+                    );
                 }
 
                 // the chunk is correct
-                assert_eq!(&nums[decoded_accum.len()..(decoded_accum.len() + nums_decoded)],
-                           &decoded[0..nums_decoded]);
+                assert_eq!(
+                    &nums[decoded_accum.len()..(decoded_accum.len() + nums_decoded)],
+                    &decoded[0..nums_decoded]
+                );
                 // beyond the chunk wasn't overwritten
-                for (i, &n) in decoded[nums_decoded..(count + extra_slots)].iter().enumerate() {
+                for (i, &n) in decoded[nums_decoded..(count + extra_slots)]
+                    .iter()
+                    .enumerate()
+                {
                     assert_eq!(garbage, n, "index {}", i);
                 }
 
@@ -198,7 +220,9 @@ fn do_decode_cursor_slice_every_decode_len<D: Decoder>()
 }
 
 fn do_decode_cursor_slice_random_decode_len<D: Decoder>()
-    where for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -226,14 +250,18 @@ fn do_decode_cursor_slice_random_decode_len<D: Decoder>()
             let garbage = rng.gen();
             decoded.clear();
             decoded.resize(count + extra_slots, garbage);
-            let decode_len: usize = rng.gen_range(QUAD_LEN,
-                                                  cmp::max(QUAD_LEN + 1, count + 1));
+            let decode_len: usize = rng.gen_range(QUAD_LEN, cmp::max(QUAD_LEN + 1, count + 1));
             let nums_decoded = cursor.decode_slice::<D>(&mut decoded[0..decode_len]);
             // the chunk is correct
-            assert_eq!(&nums[decoded_accum.len()..(decoded_accum.len() + nums_decoded)],
-                       &decoded[0..nums_decoded]);
+            assert_eq!(
+                &nums[decoded_accum.len()..(decoded_accum.len() + nums_decoded)],
+                &decoded[0..nums_decoded]
+            );
             // beyond the chunk wasn't overwritten
-            for (i, &n) in decoded[nums_decoded..(count + extra_slots)].iter().enumerate() {
+            for (i, &n) in decoded[nums_decoded..(count + extra_slots)]
+                .iter()
+                .enumerate()
+            {
                 assert_eq!(garbage as u32, n, "index {}", i);
             }
 
@@ -250,7 +278,9 @@ fn do_decode_cursor_slice_random_decode_len<D: Decoder>()
 }
 
 fn do_decode_cursor_skip_every_allowable_len_from_start<D: Decoder>()
-    where for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -287,7 +317,10 @@ fn do_decode_cursor_skip_every_allowable_len_from_start<D: Decoder>()
             // the chunk is correct
             assert_eq!(&nums[skip_len..], &decoded[0..nums_decoded]);
             // beyond the chunk wasn't overwritten
-            for (i, &n) in decoded[nums_decoded..(count + extra_slots)].iter().enumerate() {
+            for (i, &n) in decoded[nums_decoded..(count + extra_slots)]
+                .iter()
+                .enumerate()
+            {
                 assert_eq!(garbage as u32, n, "index {}", i);
             }
 
@@ -297,7 +330,9 @@ fn do_decode_cursor_skip_every_allowable_len_from_start<D: Decoder>()
 }
 
 fn do_decode_cursor_slice_input_only_partial_quad_decodes_all<D: Decoder>()
-    where for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -324,7 +359,10 @@ fn do_decode_cursor_slice_input_only_partial_quad_decodes_all<D: Decoder>()
         // the chunk is correct
         assert_eq!(&nums[..], &decoded[0..nums_decoded]);
         // beyond the chunk wasn't overwritten
-        for (i, &n) in decoded[nums_decoded..(count + extra_slots)].iter().enumerate() {
+        for (i, &n) in decoded[nums_decoded..(count + extra_slots)]
+            .iter()
+            .enumerate()
+        {
             assert_eq!(garbage as u32, n, "index {}", i);
         }
 
@@ -334,7 +372,9 @@ fn do_decode_cursor_slice_input_only_partial_quad_decodes_all<D: Decoder>()
 
 
 fn do_decode_cursor_skip_every_allowable_len_between_decodes<D: Decoder>()
-    where for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -371,8 +411,12 @@ fn do_decode_cursor_skip_every_allowable_len_between_decodes<D: Decoder>()
 
                     // 1: decode a bit
                     let mut cursor = DecodeCursor::new(&encoded[0..encoded_len], count);
-                    let initial_decoded_nums = cursor.decode_slice::<D>(&mut decoded[0..initial_decode_len]);
-                    assert_eq!(&nums[0..initial_decoded_nums], &decoded[0..initial_decoded_nums]);
+                    let initial_decoded_nums =
+                        cursor.decode_slice::<D>(&mut decoded[0..initial_decode_len]);
+                    assert_eq!(
+                        &nums[0..initial_decoded_nums],
+                        &decoded[0..initial_decoded_nums]
+                    );
                     for (i, &n) in decoded[initial_decoded_nums..].iter().enumerate() {
                         assert_eq!(garbage, n, "index {}", i);
                     }
@@ -392,7 +436,8 @@ fn do_decode_cursor_skip_every_allowable_len_between_decodes<D: Decoder>()
                     let garbage = rng.gen();
                     decoded.clear();
                     decoded.resize(count + extra_slots, garbage);
-                    let final_decoded_nums = cursor.decode_slice::<D>(&mut decoded[0..final_decode_len]);
+                    let final_decoded_nums =
+                        cursor.decode_slice::<D>(&mut decoded[0..final_decode_len]);
 
                     // the count of what was decoded was correct
 
@@ -405,14 +450,23 @@ fn do_decode_cursor_skip_every_allowable_len_between_decodes<D: Decoder>()
                     } else {
                         // couldn't decode everything, but at least QUAD_LEN, so should be
                         // n * QUAD_LEN
-                        assert_eq!(final_decode_len - final_decode_len % QUAD_LEN, final_decoded_nums);
+                        assert_eq!(
+                            final_decode_len - final_decode_len % QUAD_LEN,
+                            final_decoded_nums
+                        );
                     }
 
                     // the decoded data is correct
-                    assert_eq!(&nums[(initial_decoded_nums + skip_len)..(initial_decoded_nums + skip_len + final_decoded_nums)],
-                               &decoded[0..final_decoded_nums]);
+                    assert_eq!(
+                        &nums[(initial_decoded_nums + skip_len)
+                                  ..(initial_decoded_nums + skip_len + final_decoded_nums)],
+                        &decoded[0..final_decoded_nums]
+                    );
                     // beyond the chunk wasn't overwritten
-                    for (i, &n) in decoded[final_decoded_nums..(count + extra_slots)].iter().enumerate() {
+                    for (i, &n) in decoded[final_decoded_nums..(count + extra_slots)]
+                        .iter()
+                        .enumerate()
+                    {
                         assert_eq!(garbage as u32, n, "index {}", i);
                     }
                 }
@@ -421,8 +475,12 @@ fn do_decode_cursor_skip_every_allowable_len_between_decodes<D: Decoder>()
     }
 }
 
-fn do_decode_cursor_sink_decode_entire_input_emits_entire_input_including_trailing_partial_quad<D: Decoder>()
-    where TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+fn do_decode_cursor_sink_decode_entire_input_emits_entire_input_including_trailing_partial_quad<
+    D: Decoder,
+>()
+where
+    TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut expected = Vec::new();
@@ -449,7 +507,9 @@ fn do_decode_cursor_sink_decode_entire_input_emits_entire_input_including_traili
 }
 
 fn do_decode_cursor_sink_decode_partial_input_from_beginning_emits_complete_quads_only<D: Decoder>()
-    where TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut expected = Vec::new();
@@ -474,7 +534,13 @@ fn do_decode_cursor_sink_decode_partial_input_from_beginning_emits_complete_quad
             let mut sink = TupleSink::new();
             let nums_decoded = cursor.decode_sink::<D, _>(&mut sink, partial_len);
 
-            assert_eq!(complete_quad_len, nums_decoded, "len {} partial len {}", len, partial_len);
+            assert_eq!(
+                complete_quad_len,
+                nums_decoded,
+                "len {} partial len {}",
+                len,
+                partial_len
+            );
             assert_eq!(expected, sink.tuples);
             if partial_len % QUAD_LEN == 0 {
                 assert_eq!(partial_len, nums_decoded);
@@ -484,7 +550,9 @@ fn do_decode_cursor_sink_decode_partial_input_from_beginning_emits_complete_quad
 }
 
 fn do_decode_cursor_sink_decode_in_chunks_emits_complete_quads_until_end<D: Decoder>()
-    where TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut expected = Vec::new();
@@ -511,26 +579,42 @@ fn do_decode_cursor_sink_decode_in_chunks_emits_complete_quads_until_end<D: Deco
                 };
 
                 for num in 0..expected_decode_len {
-                    expected.push((num as usize,
-                                   total_nums_decoded as u32 + num as u32 + 1000));
+                    expected.push((
+                        num as usize,
+                        total_nums_decoded as u32 + num as u32 + 1000,
+                    ));
                 }
 
                 let mut sink = TupleSink::new();
                 let nums_decoded = cursor.decode_sink::<D, _>(&mut sink, chunk_len);
 
-                assert_eq!(expected_decode_len, nums_decoded, "len {} chunk len {}", len, chunk_len);
+                assert_eq!(
+                    expected_decode_len,
+                    nums_decoded,
+                    "len {} chunk len {}",
+                    len,
+                    chunk_len
+                );
                 assert_eq!(expected, sink.tuples);
 
                 total_nums_decoded += nums_decoded;
             }
 
-            assert_eq!(len, total_nums_decoded, "len {} chunk len {}", len, chunk_len);
+            assert_eq!(
+                len,
+                total_nums_decoded,
+                "len {} chunk len {}",
+                len,
+                chunk_len
+            );
         }
     }
 }
 
 fn do_decode_cursor_sink_decode_in_chunks_smaller_than_first_quad_decodes_0_nums<D: Decoder>()
-    where TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
 
@@ -548,8 +632,12 @@ fn do_decode_cursor_sink_decode_in_chunks_smaller_than_first_quad_decodes_0_nums
     }
 }
 
-fn do_decode_cursor_sink_decode_final_chunk_partially_includes_leftovers_decodes_only_complete_quads<D: Decoder>()
-    where TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+fn do_decode_cursor_sink_decode_final_chunk_partially_includes_leftovers_decodes_only_complete_quads<
+    D: Decoder,
+>()
+where
+    TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
 
@@ -562,13 +650,7 @@ fn do_decode_cursor_sink_decode_final_chunk_partially_includes_leftovers_decodes
         let nums_decoded = cursor.decode_sink::<D, _>(&mut sink, decode_len);
 
         assert_eq!(40, nums_decoded);
-        let expected_suffix = vec![
-            (35, 1035),
-            (36, 1036),
-            (37, 1037),
-            (38, 1038),
-            (39, 1039),
-        ];
+        let expected_suffix = vec![(35, 1035), (36, 1036), (37, 1037), (38, 1038), (39, 1039)];
         assert_eq!(&expected_suffix[..], &sink.tuples[35..]);
     }
 
@@ -592,7 +674,9 @@ fn do_decode_cursor_sink_decode_final_chunk_partially_includes_leftovers_decodes
 }
 
 fn do_decode_cursor_sink_decode_after_finishing_input_decodes_0_numbers<D: Decoder>()
-    where TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    TupleSink: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
 
@@ -625,7 +709,12 @@ fn do_decode_cursor_sink_decode_after_finishing_input_decodes_0_numbers<D: Decod
 }
 
 /// Prepare some input
-fn prepare_offset_nums(count: usize, offset: u32, nums: &mut Vec<u32>, encoded: &mut Vec<u8>) -> usize {
+fn prepare_offset_nums(
+    count: usize,
+    offset: u32,
+    nums: &mut Vec<u32>,
+    encoded: &mut Vec<u8>,
+) -> usize {
     for num in 0..count {
         nums.push(num as u32 + offset);
     }
@@ -638,14 +727,12 @@ fn prepare_offset_nums(count: usize, offset: u32, nums: &mut Vec<u32>, encoded: 
 }
 
 struct TupleSink {
-    tuples: Vec<(usize, u32)>
+    tuples: Vec<(usize, u32)>,
 }
 
 impl TupleSink {
     fn new() -> TupleSink {
-        TupleSink {
-            tuples: Vec::new()
-        }
+        TupleSink { tuples: Vec::new() }
     }
 }
 

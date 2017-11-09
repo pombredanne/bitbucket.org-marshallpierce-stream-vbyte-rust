@@ -1,4 +1,5 @@
-use super::{Decoder, Scalar, encoded_shape, EncodedShape, SliceDecodeSink, DecodeQuadSink, decode_num_scalar, cumulative_encoded_len};
+use super::{cumulative_encoded_len, decode_num_scalar, encoded_shape, DecodeQuadSink, Decoder,
+            EncodedShape, Scalar, SliceDecodeSink};
 
 /// Offers more flexible decoding than the top-level `decode()`.
 ///
@@ -23,10 +24,10 @@ use super::{Decoder, Scalar, encoded_shape, EncodedShape, SliceDecodeSink, Decod
 /// of `SliceDecodeSink` (used for `decode_slice()`) or `TupleSink` in the tests for examples.
 ///
 /// # Examples
-/// 
+///
 /// Here's a sink that calculates the maximum number in the input without writing the decoded input
 /// anywhere. (Unfortunately, due to a Rust bug I cannot include a SIMD example in a doc test.)
-/// 
+///
 /// ```
 /// extern crate rand;
 /// extern crate stream_vbyte;
@@ -40,7 +41,7 @@ use super::{Decoder, Scalar, encoded_shape, EncodedShape, SliceDecodeSink, Decod
 /// struct MaxSink {
 ///     max: u32
 /// }
-/// 
+///
 /// impl MaxSink {
 ///     fn new() -> MaxSink {
 ///         MaxSink {
@@ -48,13 +49,13 @@ use super::{Decoder, Scalar, encoded_shape, EncodedShape, SliceDecodeSink, Decod
 ///         }
 ///     }
 /// }
-/// 
+///
 /// impl stream_vbyte::DecodeSingleSink for MaxSink {
 ///     fn on_number(&mut self, num: u32, _nums_decoded: usize) {
 ///         self.max = cmp::max(self.max, num)
 ///     }
 /// }
-/// 
+///
 /// impl stream_vbyte::DecodeQuadSink<()> for MaxSink {
 ///     fn on_quad(&mut self, _quad: (), _nums_decoded: usize) {
 ///         // on_quad not used if type is ()
@@ -78,7 +79,7 @@ use super::{Decoder, Scalar, encoded_shape, EncodedShape, SliceDecodeSink, Decod
 ///
 ///     assert_eq!(34, sink.max);
 /// }
-/// 
+///
 /// ```
 ///
 #[derive(Debug)]
@@ -89,7 +90,7 @@ pub struct DecodeCursor<'a> {
     total_nums: usize,
     nums_decoded: usize,
     control_bytes_read: usize,
-    encoded_bytes_read: usize
+    encoded_bytes_read: usize,
 }
 
 impl<'a> DecodeCursor<'a> {
@@ -104,7 +105,7 @@ impl<'a> DecodeCursor<'a> {
             total_nums: count,
             nums_decoded: 0,
             control_bytes_read: 0,
-            encoded_bytes_read: 0
+            encoded_bytes_read: 0,
         }
     }
 
@@ -117,11 +118,14 @@ impl<'a> DecodeCursor<'a> {
     pub fn skip(&mut self, to_skip: usize) {
         assert_eq!(to_skip % 4, 0, "Must be a multiple of 4");
         let control_bytes_to_skip = to_skip / 4;
-        assert!(self.control_bytes_read + control_bytes_to_skip
-                        <= self.encoded_shape.complete_control_bytes_len,
-                "Can't skip past the end of complete control bytes");
+        assert!(
+            self.control_bytes_read + control_bytes_to_skip
+                <= self.encoded_shape.complete_control_bytes_len,
+            "Can't skip past the end of complete control bytes"
+        );
 
-        let slice_to_skip = &self.control_bytes[self.control_bytes_read..(self.control_bytes_read + control_bytes_to_skip)];
+        let slice_to_skip = &self.control_bytes
+            [self.control_bytes_read..(self.control_bytes_read + control_bytes_to_skip)];
         let skipped_encoded_len = cumulative_encoded_len(&slice_to_skip);
 
         self.control_bytes_read += control_bytes_to_skip;
@@ -140,7 +144,9 @@ impl<'a> DecodeCursor<'a> {
     /// Returns the number of numbers decoded by this invocation, which may be less than the size
     /// of the buffer.
     pub fn decode_slice<D: Decoder>(&mut self, output: &mut [u32]) -> usize
-        where for <'b> SliceDecodeSink<'b>: DecodeQuadSink<D::DecodedQuad> {
+    where
+        for<'b> SliceDecodeSink<'b>: DecodeQuadSink<D::DecodedQuad>,
+    {
         let output_len = output.len();
 
         let mut sink = SliceDecodeSink::new(output);
@@ -161,7 +167,10 @@ impl<'a> DecodeCursor<'a> {
     ///
     /// Returns the number of numbers decoded.
     pub fn decode_sink<D, S>(&mut self, sink: &mut S, max_numbers_to_decode: usize) -> usize
-        where D: Decoder, S: DecodeQuadSink<D::DecodedQuad> + DecodeQuadSink<<Scalar as Decoder>::DecodedQuad> {
+    where
+        D: Decoder,
+        S: DecodeQuadSink<D::DecodedQuad> + DecodeQuadSink<<Scalar as Decoder>::DecodedQuad>,
+    {
         let start_nums_decoded = self.nums_decoded;
         let mut complete_quad_nums_decoded_this_invocation;
 
@@ -169,12 +178,14 @@ impl<'a> DecodeCursor<'a> {
 
         {
             // decode complete quads
-            let (primary_nums_decoded, primary_bytes_read) =
-                D::decode_quads(&self.control_bytes[self.control_bytes_read..self.encoded_shape.complete_control_bytes_len],
-                                &self.encoded_nums[self.encoded_bytes_read..],
-                                complete_control_bytes_to_decode,
-                                0,
-                                sink);
+            let (primary_nums_decoded, primary_bytes_read) = D::decode_quads(
+                &self.control_bytes
+                    [self.control_bytes_read..self.encoded_shape.complete_control_bytes_len],
+                &self.encoded_nums[self.encoded_bytes_read..],
+                complete_control_bytes_to_decode,
+                0,
+                sink,
+            );
 
             complete_quad_nums_decoded_this_invocation = primary_nums_decoded;
             self.nums_decoded += primary_nums_decoded;
@@ -186,11 +197,13 @@ impl<'a> DecodeCursor<'a> {
             // handle any remaining full quads if the provided Decoder did not consume all the control
             // bytes
             let (more_nums_decoded, more_bytes_read) = Scalar::decode_quads(
-                &self.control_bytes[self.control_bytes_read..self.encoded_shape.complete_control_bytes_len],
+                &self.control_bytes
+                    [self.control_bytes_read..self.encoded_shape.complete_control_bytes_len],
                 &self.encoded_nums[self.encoded_bytes_read..],
                 complete_control_bytes_to_decode - complete_quad_nums_decoded_this_invocation / 4,
                 complete_quad_nums_decoded_this_invocation,
-                sink);
+                sink,
+            );
 
             complete_quad_nums_decoded_this_invocation += more_nums_decoded;
             self.encoded_bytes_read += more_bytes_read;
@@ -199,19 +212,22 @@ impl<'a> DecodeCursor<'a> {
         }
 
         // decode incomplete quad if we're at the end and we were asked to decode all leftovers
-        if max_numbers_to_decode - complete_quad_nums_decoded_this_invocation >= self.encoded_shape.leftover_numbers
+        if max_numbers_to_decode - complete_quad_nums_decoded_this_invocation
+            >= self.encoded_shape.leftover_numbers
             && self.control_bytes_read == self.encoded_shape.complete_control_bytes_len
             && self.encoded_shape.leftover_numbers > 0
-            && self.nums_decoded < self.total_nums {
-
+            && self.nums_decoded < self.total_nums
+        {
             let control_byte = self.control_bytes[self.encoded_shape.complete_control_bytes_len];
 
             for i in 0..self.encoded_shape.leftover_numbers {
                 // first num's length in low 2 bits, last in high 2 bits
                 let bitmask = 0x03 << (i * 2);
                 let len = ((control_byte & bitmask) >> (i * 2)) as usize + 1;
-                sink.on_number(decode_num_scalar(len, &self.encoded_nums[self.encoded_bytes_read..]),
-                    complete_quad_nums_decoded_this_invocation + i);
+                sink.on_number(
+                    decode_num_scalar(len, &self.encoded_nums[self.encoded_bytes_read..]),
+                    complete_quad_nums_decoded_this_invocation + i,
+                );
                 self.nums_decoded += 1;
                 self.encoded_bytes_read += len;
             }

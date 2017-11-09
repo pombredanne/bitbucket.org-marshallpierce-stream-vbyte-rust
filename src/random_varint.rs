@@ -11,7 +11,7 @@ use self::rand::distributions::{IndependentSample, Range};
 pub struct RandomVarintEncodedLengthIter<R: Rng> {
     ranges: [Range<u32>; 4],
     range_for_picking_range: Range<usize>,
-    rng: R
+    rng: R,
 }
 
 impl<R: Rng> RandomVarintEncodedLengthIter<R> {
@@ -21,10 +21,10 @@ impl<R: Rng> RandomVarintEncodedLengthIter<R> {
                 Range::new(0, 1 << 8),
                 Range::new(1 << 8, 1 << 16),
                 Range::new(1 << 16, 1 << 24),
-                Range::new(1 << 24, u32::max_value()) // this won't ever emit the max value, sadly
+                Range::new(1 << 24, u32::max_value()), // this won't ever emit the max value, sadly
             ],
             range_for_picking_range: Range::new(0, 4),
-            rng
+            rng,
         }
     }
 }

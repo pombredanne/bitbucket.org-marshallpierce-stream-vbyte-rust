@@ -1,5 +1,5 @@
-extern crate stream_vbyte;
 extern crate rand;
+extern crate stream_vbyte;
 
 use std::fs::File;
 use std::io::Read;
@@ -85,7 +85,9 @@ fn encode_sse41_compare_reference_impl() {
 }
 
 fn do_random_roundtrip<E: Encoder, D: Decoder>()
-    where for <'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -111,11 +113,21 @@ fn do_random_roundtrip<E: Encoder, D: Decoder>()
 
         let encoded_len = encode::<E>(&nums, &mut encoded);
         // extra bytes in encoded were not touched
-        for (i, &b) in encoded[encoded_len..(encoded_len + extra_slots)].iter().enumerate() {
+        for (i, &b) in encoded[encoded_len..(encoded_len + extra_slots)]
+            .iter()
+            .enumerate()
+        {
             assert_eq!(garbage, b, "index {}", i);
         }
 
-        assert_eq!(encoded_len, decode::<D>(&encoded[0..encoded_len], count, &mut decoded[0..decoded_len]));
+        assert_eq!(
+            encoded_len,
+            decode::<D>(
+                &encoded[0..encoded_len],
+                count,
+                &mut decoded[0..decoded_len]
+            )
+        );
         // extra u32s in decoded were not touched
         for (i, &n) in decoded[count..(count + extra_slots)].iter().enumerate() {
             assert_eq!(garbage as u32, n, "index {}", i);
@@ -126,7 +138,9 @@ fn do_random_roundtrip<E: Encoder, D: Decoder>()
 }
 
 fn do_all_same_single_byte<E: Encoder, D: Decoder>()
-    where for <'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded: Vec<u8> = Vec::new();
     let mut decoded: Vec<u32> = Vec::new();
@@ -166,11 +180,21 @@ fn do_all_same_single_byte<E: Encoder, D: Decoder>()
                 assert_eq!(num, b, "index {}", i);
             }
             // extra bytes in encoded were not touched
-            for (i, &b) in encoded[encoded_len..(encoded_len + extra_slots)].iter().enumerate() {
+            for (i, &b) in encoded[encoded_len..(encoded_len + extra_slots)]
+                .iter()
+                .enumerate()
+            {
                 assert_eq!(garbage, b, "index {}", i);
             }
 
-            assert_eq!(encoded_len, decode::<D>(&encoded[0..encoded_len], count, &mut decoded[0..decoded_len]));
+            assert_eq!(
+                encoded_len,
+                decode::<D>(
+                    &encoded[0..encoded_len],
+                    count,
+                    &mut decoded[0..decoded_len]
+                )
+            );
             // extra u32s in decoded were not touched
             for (i, &n) in decoded[count..(count + extra_slots)].iter().enumerate() {
                 assert_eq!(garbage as u32, n, "index {}", i);
@@ -184,7 +208,10 @@ fn do_all_same_single_byte<E: Encoder, D: Decoder>()
 fn do_compare_reference_data<E: Encoder>() {
     let ref_nums: Vec<u32> = (0..5000).map(|x| x * 100).collect();
     let mut ref_data = Vec::new();
-    File::open("tests/data/data.bin").unwrap().read_to_end(&mut ref_data).unwrap();
+    File::open("tests/data/data.bin")
+        .unwrap()
+        .read_to_end(&mut ref_data)
+        .unwrap();
     let ref_data = ref_data;
 
     let mut rust_encoded_data = Vec::new();
@@ -197,7 +224,7 @@ fn do_compare_reference_data<E: Encoder>() {
 }
 
 fn do_partial_final_quad_roundtrip_scalar<E: Encoder>() {
-     // easily recognizable bit patterns
+    // easily recognizable bit patterns
     let nums = vec![0, 1 << 8, 3 << 16, 7 << 24, 2 << 8, 4 << 16];
     let mut encoded = Vec::new();
     encoded.resize(nums.len() * 5, 0xFF);
@@ -211,13 +238,14 @@ fn do_partial_final_quad_roundtrip_scalar<E: Encoder>() {
     }
 
     // output, broken down by number
+    #[cfg_attr(rustfmt, rustfmt_skip)]
     let expected = vec![0xE4, 0x09,
-                        0x00,
-                        0x00, 0x01,
-                        0x00, 0x00, 0x03,
-                        0x00, 0x00, 0x00, 0x07,
-                        0x00, 0x02,
-                        0x00, 0x00, 0x04];
+                                 0x00,
+                                 0x00, 0x01,
+                                 0x00, 0x00, 0x03,
+                                 0x00, 0x00, 0x00, 0x07,
+                                 0x00, 0x02,
+                                 0x00, 0x00, 0x04];
     assert_eq!(&expected[..], &encoded[0..encoded_len]);
 
     let mut decoded = Vec::new();

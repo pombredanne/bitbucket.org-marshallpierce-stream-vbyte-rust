@@ -1,13 +1,18 @@
 use std::cmp;
 
-use super::{decode_num_scalar, encode_num_scalar, Encoder, Decoder, DecodeQuadSink, SliceDecodeSink, tables};
+use super::{decode_num_scalar, encode_num_scalar, tables, DecodeQuadSink, Decoder, Encoder,
+            SliceDecodeSink};
 
 /// Encoder/Decoder that works on every platform, at the cost of speed compared to the SIMD accelerated versions.
 pub struct Scalar;
 
 impl Encoder for Scalar {
     // This implementation encodes all provided input numbers.
-    fn encode_quads(input: &[u32], control_bytes: &mut [u8], encoded_nums: &mut [u8]) -> (usize, usize) {
+    fn encode_quads(
+        input: &[u32],
+        control_bytes: &mut [u8],
+        encoded_nums: &mut [u8],
+    ) -> (usize, usize) {
         let mut bytes_written = 0;
         let mut nums_encoded = 0;
 
@@ -20,10 +25,14 @@ impl Encoder for Scalar {
             let len0 = encode_num_scalar(num0, &mut encoded_nums[bytes_written..]);
             let len1 = encode_num_scalar(num1, &mut encoded_nums[bytes_written + len0..]);
             let len2 = encode_num_scalar(num2, &mut encoded_nums[bytes_written + len0 + len1..]);
-            let len3 = encode_num_scalar(num3, &mut encoded_nums[bytes_written + len0 + len1 + len2..]);
+            let len3 = encode_num_scalar(
+                num3,
+                &mut encoded_nums[bytes_written + len0 + len1 + len2..],
+            );
 
             // this is a few percent faster in my testing than using control_bytes.iter_mut()
-            control_bytes[quads_encoded] = ((len0 - 1) | (len1 - 1) << 2 | (len2 - 1) << 4 | (len3 - 1) << 6) as u8;
+            control_bytes[quads_encoded] =
+                ((len0 - 1) | (len1 - 1) << 2 | (len2 - 1) << 4 | (len3 - 1) << 6) as u8;
 
             bytes_written += len0 + len1 + len2 + len3;
             nums_encoded += 4;
@@ -39,26 +48,41 @@ impl Decoder for Scalar {
     type DecodedQuad = ();
 
     // This implementation decodes all provided encoded data.
-    fn decode_quads<S: DecodeQuadSink<Self::DecodedQuad>>(control_bytes: &[u8],
-                                                          encoded_nums: &[u8],
-                                                          control_bytes_to_decode: usize,
-                                                          nums_already_decoded: usize,
-                                                          sink: &mut S) -> (usize, usize) {
+    fn decode_quads<S: DecodeQuadSink<Self::DecodedQuad>>(
+        control_bytes: &[u8],
+        encoded_nums: &[u8],
+        control_bytes_to_decode: usize,
+        nums_already_decoded: usize,
+        sink: &mut S,
+    ) -> (usize, usize) {
         let mut bytes_read: usize = 0;
         let mut nums_decoded: usize = nums_already_decoded;
         let control_byte_limit = cmp::min(control_bytes.len(), control_bytes_to_decode);
 
         for &control_byte in control_bytes[0..control_byte_limit].iter() {
-            let (len0, len1, len2, len3) = tables::DECODE_LENGTH_PER_NUM_TABLE[control_byte as usize];
+            let (len0, len1, len2, len3) =
+                tables::DECODE_LENGTH_PER_NUM_TABLE[control_byte as usize];
             let len0 = len0 as usize;
             let len1 = len1 as usize;
             let len2 = len2 as usize;
             let len3 = len3 as usize;
 
-            sink.on_number(decode_num_scalar(len0, &encoded_nums[bytes_read..]), nums_decoded);
-            sink.on_number(decode_num_scalar(len1, &encoded_nums[bytes_read + len0..]), nums_decoded + 1);
-            sink.on_number(decode_num_scalar(len2, &encoded_nums[bytes_read + len0 + len1..]), nums_decoded + 2);
-            sink.on_number(decode_num_scalar(len3, &encoded_nums[bytes_read + len0 + len1 + len2..]), nums_decoded + 3);
+            sink.on_number(
+                decode_num_scalar(len0, &encoded_nums[bytes_read..]),
+                nums_decoded,
+            );
+            sink.on_number(
+                decode_num_scalar(len1, &encoded_nums[bytes_read + len0..]),
+                nums_decoded + 1,
+            );
+            sink.on_number(
+                decode_num_scalar(len2, &encoded_nums[bytes_read + len0 + len1..]),
+                nums_decoded + 2,
+            );
+            sink.on_number(
+                decode_num_scalar(len3, &encoded_nums[bytes_read + len0 + len1 + len2..]),
+                nums_decoded + 3,
+            );
 
             bytes_read += len0 + len1 + len2 + len3;
             nums_decoded += 4;

@@ -1,8 +1,8 @@
 extern crate x86intrin;
 
-use self::x86intrin::{sse2, ssse3, sse41, m128i};
+use self::x86intrin::{m128i, sse2, sse41, ssse3};
 
-use super::super::{Encoder, tables};
+use super::super::{tables, Encoder};
 
 /// Encoder using SSE4.1 instructions.
 pub struct Sse41;
@@ -15,12 +15,14 @@ const SHIFTS: [u32; 4] = [SHIFT, SHIFT, SHIFT, SHIFT];
 // 0 = 1 byte encoded num, 1 = 2 byte, etc.
 // These are concatenated into the control byte, and also used to sum to find the total length.
 // The ordering of these codes is determined by how the bytemap is calculated; see comments below.
+#[cfg_attr(rustfmt, rustfmt_skip)]
 const LANECODES: [u8; 16] = [
     0, 3, 2, 3,
     1, 3, 2, 3,
     128, 128, 128, 128,
     128, 128, 128, 128];
 // gather high bytes from each lane, 2 copies
+#[cfg_attr(rustfmt, rustfmt_skip)]
 const GATHER_HI: [u8; 16] = [
     15, 11, 7, 3,
     15, 11, 7, 3,
@@ -53,7 +55,8 @@ impl Encoder for Sse41 {
 
         for control_byte in &mut control_bytes[0..control_byte_limit].iter_mut() {
             let to_encode = unsafe {
-                sse2::mm_loadu_si128(input[nums_encoded..(nums_encoded + 4)].as_ptr() as *const m128i)
+                sse2::mm_loadu_si128(input[nums_encoded..(nums_encoded + 4)].as_ptr()
+                    as *const m128i)
             };
 
             // clamp each byte to 1 if nonzero
@@ -101,14 +104,15 @@ impl Encoder for Sse41 {
             let length = bytes.extract(7) + 4;
 
             let mask_bytes = tables::X86_ENCODE_SHUFFLE_TABLE[code as usize];
-            let encode_mask = unsafe {
-                sse2::mm_loadu_si128(mask_bytes.as_ptr() as *const m128i)
-            };
+            let encode_mask = unsafe { sse2::mm_loadu_si128(mask_bytes.as_ptr() as *const m128i) };
 
             let encoded = ssse3::mm_shuffle_epi8(to_encode, encode_mask);
 
             unsafe {
-                sse2::mm_storeu_si128(output[bytes_encoded..(bytes_encoded + 16)].as_ptr() as *mut m128i, encoded);
+                sse2::mm_storeu_si128(
+                    output[bytes_encoded..(bytes_encoded + 16)].as_ptr() as *mut m128i,
+                    encoded,
+                );
             }
 
             *control_byte = code;
@@ -147,8 +151,10 @@ mod tests {
 
             let control_bytes_written = nums_encoded / 4;
 
-            assert_eq!(cumulative_encoded_len(&encoded[0..control_bytes_written]),
-                       bytes_written);
+            assert_eq!(
+                cumulative_encoded_len(&encoded[0..control_bytes_written]),
+                bytes_written
+            );
 
             // the last control byte written may not have populated all 16 output bytes with encoded
             // nums, depending on the length required. Any unused trailing bytes will have had 0
@@ -157,16 +163,23 @@ mod tests {
             let length_before_final_control_byte =
                 cumulative_encoded_len(&encoded[0..control_bytes_written.saturating_sub(1)]);
 
-            let bytes_written_for_final_control_byte = bytes_written - length_before_final_control_byte;
+            let bytes_written_for_final_control_byte =
+                bytes_written - length_before_final_control_byte;
             let trailing_zero_len = if control_bytes_written > 0 {
                 16 - bytes_written_for_final_control_byte
             } else {
                 0
             };
 
-            assert!(&encoded[control_bytes_len + bytes_written..control_bytes_len + bytes_written + trailing_zero_len]
-                    .iter().all(|&i| i == 0));
-            assert!(&encoded[control_bytes_len + bytes_written + trailing_zero_len..].iter().all(|&i| i == 0xFF));
+            assert!(&encoded[control_bytes_len + bytes_written
+                         ..control_bytes_len + bytes_written
+                             + trailing_zero_len]
+                .iter()
+                .all(|&i| i == 0));
+            assert!(&encoded[control_bytes_len + bytes_written
+                         + trailing_zero_len..]
+                .iter()
+                .all(|&i| i == 0xFF));
         }
     }
 }

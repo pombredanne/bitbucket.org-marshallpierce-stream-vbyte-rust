@@ -52,19 +52,28 @@ fn decode_num_zero() {
 
 #[test]
 fn decode_num_u32_max() {
-    assert_eq!(u32::max_value(), decode_num_scalar(4, &vec![0xFF, 0xFF, 0xFF, 0xFF]));
+    assert_eq!(
+        u32::max_value(),
+        decode_num_scalar(4, &vec![0xFF, 0xFF, 0xFF, 0xFF])
+    );
 }
 
 #[test]
 fn decode_num_4_byte() {
     // 0x04030201
-    assert_eq!((4 << 24) + (3 << 16) + (2 << 8) + 1, decode_num_scalar(4, &vec![1, 2, 3, 4]));
+    assert_eq!(
+        (4 << 24) + (3 << 16) + (2 << 8) + 1,
+        decode_num_scalar(4, &vec![1, 2, 3, 4])
+    );
 }
 
 #[test]
 fn decode_num_3_byte() {
     // 0x04030201
-    assert_eq!((3 << 16) + (2 << 8) + 1, decode_num_scalar(3, &vec![1, 2, 3]));
+    assert_eq!(
+        (3 << 16) + (2 << 8) + 1,
+        decode_num_scalar(3, &vec![1, 2, 3])
+    );
 }
 
 #[test]
@@ -96,7 +105,7 @@ fn encoded_shape_len_0() {
     let expected = EncodedShape {
         control_bytes_len: 0,
         complete_control_bytes_len: 0,
-        leftover_numbers: 0
+        leftover_numbers: 0,
     };
 
     assert_eq!(expected, shape);
@@ -108,7 +117,7 @@ fn encoded_shape_len_1() {
     let expected = EncodedShape {
         control_bytes_len: 1,
         complete_control_bytes_len: 0,
-        leftover_numbers: 1
+        leftover_numbers: 1,
     };
 
     assert_eq!(expected, shape);
@@ -120,7 +129,7 @@ fn encoded_shape_len_3() {
     let expected = EncodedShape {
         control_bytes_len: 1,
         complete_control_bytes_len: 0,
-        leftover_numbers: 3
+        leftover_numbers: 3,
     };
 
     assert_eq!(expected, shape);
@@ -132,7 +141,7 @@ fn encoded_shape_len_4() {
     let expected = EncodedShape {
         control_bytes_len: 1,
         complete_control_bytes_len: 1,
-        leftover_numbers: 0
+        leftover_numbers: 0,
     };
 
     assert_eq!(expected, shape);
@@ -144,7 +153,7 @@ fn encoded_shape_len_5() {
     let expected = EncodedShape {
         control_bytes_len: 2,
         complete_control_bytes_len: 1,
-        leftover_numbers: 1
+        leftover_numbers: 1,
     };
 
     assert_eq!(expected, shape);
@@ -176,8 +185,10 @@ fn cumulative_encoded_len_accurate_complete_quad() {
 
         let shape = encoded_shape(count);
 
-        assert_eq!(encoded_len - shape.control_bytes_len,
-                   cumulative_encoded_len(&encoded[0..shape.control_bytes_len]));
+        assert_eq!(
+            encoded_len - shape.control_bytes_len,
+            cumulative_encoded_len(&encoded[0..shape.control_bytes_len])
+        );
     }
 }
 
@@ -196,7 +207,9 @@ fn decoder_honors_nums_to_decode_ssse3() {
 }
 
 fn decoder_honors_nums_to_decode<D: Decoder>(control_byte_limit_fudge_factor: usize)
-    where for <'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad> {
+where
+    for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
+{
     let mut nums: Vec<u32> = Vec::new();
     let mut encoded = Vec::new();
     let mut decoded = Vec::new();
@@ -224,15 +237,20 @@ fn decoder_honors_nums_to_decode<D: Decoder>(control_byte_limit_fudge_factor: us
         // count is a multiple of 4, so no partial quad
         let control_bytes = &encoded[0..count / 4];
         let encoded_nums = &encoded[count / 4..encoded_len];
-        let (nums_decoded, bytes_read) = D::decode_quads(&control_bytes,
-                                                         &encoded_nums,
-                                                         control_bytes_to_decode,
-                                                         0,
-                                                         &mut SliceDecodeSink::new(&mut decoded));
+        let (nums_decoded, bytes_read) = D::decode_quads(
+            &control_bytes,
+            &encoded_nums,
+            control_bytes_to_decode,
+            0,
+            &mut SliceDecodeSink::new(&mut decoded),
+        );
 
         let nums_to_decode = control_bytes_to_decode * 4;
         assert_eq!(nums_to_decode, nums_decoded);
-        assert_eq!(bytes_read, cumulative_encoded_len(&control_bytes[0..control_bytes_to_decode]));
+        assert_eq!(
+            bytes_read,
+            cumulative_encoded_len(&control_bytes[0..control_bytes_to_decode])
+        );
 
         // extra u32s in decoded were not touched
         for (i, &n) in decoded[nums_to_decode..].iter().enumerate() {

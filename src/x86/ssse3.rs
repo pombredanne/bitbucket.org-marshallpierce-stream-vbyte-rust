@@ -2,9 +2,9 @@ extern crate x86intrin;
 
 use std::cmp;
 
-use self::x86intrin::{sse2, ssse3, m128i};
+use self::x86intrin::{m128i, sse2, ssse3};
 
-use super::super::{Decoder, DecodeQuadSink, SliceDecodeSink, tables};
+use super::super::{tables, DecodeQuadSink, Decoder, SliceDecodeSink};
 
 /// Decoder using SSSE3 instructions.
 pub struct Ssse3;
@@ -12,11 +12,13 @@ pub struct Ssse3;
 impl Decoder for Ssse3 {
     type DecodedQuad = m128i;
 
-    fn decode_quads<S: DecodeQuadSink<Self::DecodedQuad>>(control_bytes: &[u8],
-                                                          encoded_nums: &[u8],
-                                                          control_bytes_to_decode: usize,
-                                                          nums_already_decoded: usize,
-                                                          sink: &mut S) -> (usize, usize) {
+    fn decode_quads<S: DecodeQuadSink<Self::DecodedQuad>>(
+        control_bytes: &[u8],
+        encoded_nums: &[u8],
+        control_bytes_to_decode: usize,
+        nums_already_decoded: usize,
+        sink: &mut S,
+    ) -> (usize, usize) {
         let mut bytes_read: usize = 0;
         let mut nums_decoded: usize = nums_already_decoded;
 
@@ -25,8 +27,10 @@ impl Decoder for Ssse3 {
         // additional control bytes' worth of numbers to provide the extra 12 bytes.
         // However, if control_bytes_to_decode is short enough, we can decode all the requested numbers
         // because we'll have un-processed input to ensure we can read 16 bytes.
-        let control_byte_limit = cmp::min(control_bytes_to_decode,
-                                          control_bytes.len().saturating_sub(3));
+        let control_byte_limit = cmp::min(
+            control_bytes_to_decode,
+            control_bytes.len().saturating_sub(3),
+        );
 
         // need to ensure that we can copy 16 encoded bytes, so last few quads will be handled
         // by a slower loop
@@ -64,7 +68,10 @@ impl<'a> DecodeQuadSink<m128i> for SliceDecodeSink<'a> {
     fn on_quad(&mut self, quad: m128i, nums_decoded: usize) {
         unsafe {
             // using slice size to make sure it's ok to write 4 u32s
-            sse2::mm_storeu_si128(self.output[nums_decoded..(nums_decoded + 4)].as_ptr() as *mut m128i, quad)
+            sse2::mm_storeu_si128(
+                self.output[nums_decoded..(nums_decoded + 4)].as_ptr() as *mut m128i,
+                quad,
+            )
         }
     }
 }
@@ -92,14 +99,18 @@ mod tests {
             decoded.resize(nums.len(), 54321);
 
             // requesting 13 or fewer control bytes decodes all requested bytes
-            let (nums_decoded, bytes_read) = Ssse3::decode_quads(&control_bytes,
-                                                                 &encoded_nums,
-                                                                 control_bytes_to_decode,
-                                                                 0,
-                                                                 &mut SliceDecodeSink::new(&mut decoded));
+            let (nums_decoded, bytes_read) = Ssse3::decode_quads(
+                &control_bytes,
+                &encoded_nums,
+                control_bytes_to_decode,
+                0,
+                &mut SliceDecodeSink::new(&mut decoded),
+            );
             assert_eq!(control_bytes_to_decode * 4, nums_decoded);
-            assert_eq!(cumulative_encoded_len(&control_bytes[0..control_bytes_to_decode]),
-                       bytes_read);
+            assert_eq!(
+                cumulative_encoded_len(&control_bytes[0..control_bytes_to_decode]),
+                bytes_read
+            );
             assert_eq!(&nums[0..nums_decoded], &decoded[0..nums_decoded]);
             assert!(&decoded[nums_decoded..].iter().all(|&i| i == 54321_u32));
         }
@@ -110,14 +121,18 @@ mod tests {
 
             // requesting more than 13 gets capped to 13 because there may not be enough encoded
             // nums to read 16 bytes at a time
-            let (nums_decoded, bytes_read) = Ssse3::decode_quads(&control_bytes,
-                                                                 &encoded_nums,
-                                                                 control_bytes_to_decode,
-                                                                 0,
-                                                                 &mut SliceDecodeSink::new(&mut decoded));
+            let (nums_decoded, bytes_read) = Ssse3::decode_quads(
+                &control_bytes,
+                &encoded_nums,
+                control_bytes_to_decode,
+                0,
+                &mut SliceDecodeSink::new(&mut decoded),
+            );
             assert_eq!(13 * 4, nums_decoded);
-            assert_eq!(cumulative_encoded_len(&control_bytes[0..(nums_decoded / 4)]),
-                       bytes_read);
+            assert_eq!(
+                cumulative_encoded_len(&control_bytes[0..(nums_decoded / 4)]),
+                bytes_read
+            );
             assert_eq!(&nums[0..nums_decoded], &decoded[0..nums_decoded]);
             assert!(&decoded[nums_decoded..].iter().all(|&i| i == 54321_u32));
         }
