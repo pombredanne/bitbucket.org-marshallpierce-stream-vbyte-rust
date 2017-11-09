@@ -1,3 +1,8 @@
+# 0.4.0
+
+- User-provided decode sinks
+
+
 # 0.3.1, 0.3.2
 
 - Uninteresting build system changes
