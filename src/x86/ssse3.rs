@@ -4,7 +4,8 @@ use std::cmp;
 
 use self::x86intrin::{m128i, sse2, ssse3};
 
-use super::super::{tables, DecodeQuadSink, Decoder, SliceDecodeSink};
+use {tables, SliceDecodeSink};
+use decode::{DecodeQuadSink, Decoder};
 
 /// Decoder using SSSE3 instructions.
 pub struct Ssse3;
@@ -78,7 +79,7 @@ impl<'a> DecodeQuadSink<m128i> for SliceDecodeSink<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::*;
+    use ::*;
     use super::*;
 
     #[test]

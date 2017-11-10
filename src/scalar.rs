@@ -1,7 +1,8 @@
 use std::cmp;
 
-use super::{decode_num_scalar, encode_num_scalar, tables, DecodeQuadSink, Decoder, Encoder,
-            SliceDecodeSink};
+use {tables, SliceDecodeSink};
+use decode::{decode_num_scalar, DecodeQuadSink, Decoder};
+use encode::{encode_num_scalar, Encoder};
 
 /// Encoder/Decoder that works on every platform, at the cost of speed compared to the SIMD accelerated versions.
 pub struct Scalar;

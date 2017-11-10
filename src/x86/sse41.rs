@@ -2,7 +2,7 @@ extern crate x86intrin;
 
 use self::x86intrin::{m128i, sse2, sse41, ssse3};
 
-use super::super::{tables, Encoder};
+use {tables, Encoder};
 
 /// Encoder using SSE4.1 instructions.
 pub struct Sse41;
@@ -128,7 +128,7 @@ impl Encoder for Sse41 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::super::*;
+    use ::*;
 
     #[test]
     fn encodes_all_but_last_3_control_bytes() {

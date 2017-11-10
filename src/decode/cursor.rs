@@ -1,5 +1,5 @@
-use super::{cumulative_encoded_len, decode_num_scalar, encoded_shape, DecodeQuadSink, Decoder,
-            EncodedShape, Scalar, SliceDecodeSink};
+use {cumulative_encoded_len, encoded_shape, EncodedShape, Scalar};
+use super::{decode_num_scalar, DecodeQuadSink, Decoder, SliceDecodeSink};
 
 /// Offers more flexible decoding than the top-level `decode()`.
 ///
@@ -251,7 +251,7 @@ impl<'a> DecodeCursor<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::*;
+    use encode;
 
     #[test]
     #[should_panic(expected = "Must be a multiple of 4")]
@@ -277,7 +277,7 @@ mod tests {
         let mut encoded = Vec::new();
         encoded.resize(nums.len() * 5, 0);
 
-        let encoded_len = encode::<Scalar>(&nums, &mut encoded);
+        let encoded_len = encode::encode::<Scalar>(&nums, &mut encoded);
         let mut cursor = DecodeCursor::new(&encoded[0..encoded_len], nums.len());
 
         assert!(cursor.has_more());

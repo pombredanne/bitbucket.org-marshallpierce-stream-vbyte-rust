@@ -105,92 +105,26 @@
 
 extern crate byteorder;
 
-use std::cmp;
-use byteorder::{ByteOrder, LittleEndian};
-
 mod tables;
-mod cursor;
-
-pub use cursor::DecodeCursor;
 
 mod scalar;
-
 pub use scalar::Scalar;
 
 #[path = "x86/x86.rs"]
 pub mod x86;
 
-/// Encode numbers to bytes.
-pub trait Encoder {
-    /// Encode complete quads of input numbers.
-    ///
-    /// `control_bytes` will be exactly as long as the number of complete 4-number quads in `input`.
-    ///
-    /// Control bytes are written to `control_bytes` and encoded numbers to `output`.
-    ///
-    /// Implementations may choose to encode fewer than the full provided input, but any writes done
-    /// must be for full quads.
-    ///
-    /// Implementations must not write to `output` outside of the area that will be populated by
-    /// encoded numbers when all control bytes are processed..
-    ///
-    /// Returns the number of numbers encoded and the number of bytes written to `output`.
-    fn encode_quads(input: &[u32], control_bytes: &mut [u8], output: &mut [u8]) -> (usize, usize);
-}
+mod encode;
+pub use encode::{encode, Encoder};
 
-/// Decode bytes to numbers.
-pub trait Decoder {
-    type DecodedQuad;
-
-    /// Decode encoded numbers in complete quads.
-    ///
-    /// Only control bytes with 4 corresponding encoded numbers will be provided as input (i.e. no
-    /// trailing partial quad).
-    ///
-    /// `control_bytes` are the control bytes that correspond to `encoded_nums`.
-    ///
-    /// `max_control_bytes_to_decode` may be greater than the number of control bytes remaining, in
-    /// which case only the remaining control bytes will be decoded.
-    ///
-    /// Implementations may decode at most `max_control_bytes_to_decode` control bytes, but may decode
-    /// fewer.
-    ///
-    /// `nums_already_decoded` is the number of numbers that have already been decoded in the
-    /// `DecodeCursor.decode` invocation.
-    ///
-    /// Returns a tuple of the number of numbers decoded (always a multiple of 4; at most
-    /// `4 * max_control_bytes_to_decode`) and the number of bytes read from `encoded_nums`.
-    fn decode_quads<S: DecodeQuadSink<Self::DecodedQuad>>(
-        control_bytes: &[u8],
-        encoded_nums: &[u8],
-        max_control_bytes_to_decode: usize,
-        nums_already_decoded: usize,
-        sink: &mut S,
-    ) -> (usize, usize);
-}
-
-/// Receives numbers decoded via a Decoder in `DecodeCursor.decode_sink()`.
-///
-/// Since stream-vbyte is oriented around groups of 4 numbers, some decoders will expose decoded
-/// numbers in some decoder-specific datatype. Or, if that is not applicable for a particular
-/// `Decoder` implementation, `()` will be used, and all decoded numbers will instead be passed to
-/// `DecodeSingleSink.on_number()`.
-pub trait DecodeQuadSink<T>: DecodeSingleSink {
-    /// `nums_decoded` is the number of numbers that have already been decoded before this quad
-    /// in the current invocation of `DecodeCursor.decode_sink()`.
-    fn on_quad(&mut self, quad: T, nums_decoded: usize);
-}
-
-/// Receives numbers decoded via a Decoder in `DecodeCursor.decode_sink()` that weren't handed to
-/// `DecodeQuadSink.on_quad()`, whether because the `Decoder` implementation doesn't have a natural
-/// quad representation, or because the numbers are part of a trailing partial quad.
-pub trait DecodeSingleSink {
-    /// `nums_decoded` is the number of numbers that have already been decoded before this number
-    /// in the current invocation of `DecodeCursor.decode_sink()`.
-    fn on_number(&mut self, num: u32, nums_decoded: usize);
-}
+mod decode;
+pub use decode::{decode, DecodeQuadSink, DecodeSingleSink, Decoder};
+pub use decode::cursor::DecodeCursor;
 
 /// A sink for writing to a slice.
+///
+/// Has to be public because it's in trait bounds on `decode()`.
+/// Has to be at the top level so that submodules can access non-public fields.
+#[doc(hidden)]
 pub struct SliceDecodeSink<'a> {
     output: &'a mut [u32],
 }
@@ -204,92 +138,6 @@ impl<'a> SliceDecodeSink<'a> {
     }
 }
 
-impl<'a> DecodeSingleSink for SliceDecodeSink<'a> {
-    #[inline]
-    fn on_number(&mut self, num: u32, nums_decoded: usize) {
-        self.output[nums_decoded] = num;
-    }
-}
-
-/// Encode the `input` slice into the `output` slice.
-///
-/// If you don't have specific knowledge of the input that would let you determine the encoded
-/// length ahead of time, make `output` 5x as long as `input`. The worst-case encoded length is 4
-/// bytes per `u32` plus another byte for every 4 `u32`s, including any trailing partial 4-some.
-///
-/// Returns the number of bytes written to the `output` slice.
-pub fn encode<E: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
-    if input.len() == 0 {
-        return 0;
-    }
-
-    let shape = encoded_shape(input.len());
-
-    let (control_bytes, encoded_bytes) = output.split_at_mut(shape.control_bytes_len);
-
-    let (nums_encoded, mut num_bytes_written) = E::encode_quads(
-        &input[..],
-        &mut control_bytes[0..shape.complete_control_bytes_len],
-        &mut encoded_bytes[..],
-    );
-
-    // may be some input left, use Scalar to finish it
-    let control_bytes_written = nums_encoded / 4;
-
-    let (more_nums_encoded, more_bytes_written) = Scalar::encode_quads(
-        &input[nums_encoded..],
-        &mut control_bytes[control_bytes_written..shape.complete_control_bytes_len],
-        &mut encoded_bytes[num_bytes_written..],
-    );
-
-    num_bytes_written += more_bytes_written;
-
-    debug_assert_eq!(
-        shape.complete_control_bytes_len * 4,
-        nums_encoded + more_nums_encoded
-    );
-
-    // last control byte, if there were leftovers
-    if shape.leftover_numbers > 0 {
-        let mut control_byte = 0;
-        let mut nums_encoded = shape.complete_control_bytes_len * 4;
-
-        for i in 0..shape.leftover_numbers {
-            let num = input[nums_encoded];
-            let len = encode_num_scalar(num, &mut encoded_bytes[num_bytes_written..]);
-
-            control_byte |= ((len - 1) as u8) << (i * 2);
-
-            num_bytes_written += len;
-            nums_encoded += 1;
-        }
-        control_bytes[shape.complete_control_bytes_len] = control_byte;
-    }
-
-    control_bytes.len() + num_bytes_written
-}
-
-/// Decode `count` numbers from `input`, writing them to `output`.
-///
-/// The `count` must be the same as the number of items originally encoded.
-///
-/// `output` must be at least of size 4, and must be large enough for all `count` numbers.
-///
-/// Returns the number of bytes read from `input`.
-pub fn decode<D: Decoder>(input: &[u8], count: usize, output: &mut [u32]) -> usize
-where
-    for<'a> SliceDecodeSink<'a>: DecodeQuadSink<<D as Decoder>::DecodedQuad>,
-{
-    let mut cursor = DecodeCursor::new(&input, count);
-
-    assert_eq!(
-        count,
-        cursor.decode_slice::<D>(output),
-        "output buffer was not large enough"
-    );
-
-    cursor.input_consumed()
-}
 
 #[derive(Debug, PartialEq)]
 struct EncodedShape {
@@ -305,29 +153,6 @@ fn encoded_shape(count: usize) -> EncodedShape {
         leftover_numbers: count % 4,
     }
 }
-
-#[inline]
-fn encode_num_scalar(num: u32, output: &mut [u8]) -> usize {
-    // this will calculate 0_u32 as taking 0 bytes, so ensure at least 1 byte
-    let len = cmp::max(1_usize, 4 - num.leading_zeros() as usize / 8);
-    let mut buf = [0_u8; 4];
-    LittleEndian::write_u32(&mut buf, num);
-
-    for i in 0..len {
-        output[i] = buf[i];
-    }
-
-    len
-}
-
-#[inline]
-fn decode_num_scalar(len: usize, input: &[u8]) -> u32 {
-    let mut buf = [0_u8; 4];
-    &buf[0..len].copy_from_slice(&input[0..len]);
-
-    LittleEndian::read_u32(&buf)
-}
-
 
 fn cumulative_encoded_len(control_bytes: &[u8]) -> usize {
     // sum could only overflow with an invalid encoding because the sum can be no larger than
