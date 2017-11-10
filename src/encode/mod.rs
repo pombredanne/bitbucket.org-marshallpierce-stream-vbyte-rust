@@ -3,13 +3,14 @@ use std::cmp;
 use byteorder::{ByteOrder, LittleEndian};
 
 use encoded_shape;
-use scalar::Scalar;
 
 #[cfg(feature = "x86_sse41")]
 pub mod sse41;
 
 /// Encode numbers to bytes.
 pub trait Encoder {
+    type EncodedQuad;
+
     /// Encode complete quads of input numbers.
     ///
     /// `control_bytes` will be exactly as long as the number of complete 4-number quads in `input`.
@@ -22,8 +23,53 @@ pub trait Encoder {
     /// Implementations must not write to `output` outside of the area that will be populated by
     /// encoded numbers when all control bytes are processed..
     ///
-    /// Returns the number of numbers encoded and the number of bytes written to `output`.
+    /// Returns the number of numbers encoded, the number of bytes written to `output`, and the
+    /// `EncodeSingleTransformer` to use for the rest of the input.
     fn encode_quads(input: &[u32], control_bytes: &mut [u8], output: &mut [u8]) -> (usize, usize);
+}
+
+/// Transform numbers at encode time.
+///
+/// This is not meant to be implemented exernally, but must be public because it is used in
+/// `Encoder`.
+#[doc(hidden)]
+pub trait EncodeQuadTransformer<Q> {
+    type SingleTransformer: EncodeSingleTransformer;
+    /// Transform a quad of numbers.
+    fn transform_quad(&mut self, quad: Q) -> Q;
+
+    /// Once this is called, no more invocations of `transform_quad()` will be made.
+    fn into_single_transformer(self) -> Self::SingleTransformer;
+}
+
+#[doc(hidden)]
+pub trait EncodeSingleTransformer {
+    /// Transform a single number.
+    fn transform(&mut self, num: u32) -> u32;
+}
+
+/// Don't transform the input at all.
+pub struct IdentityTransformer;
+
+impl<T> EncodeQuadTransformer<T> for IdentityTransformer {
+    type SingleTransformer = IdentityTransformer;
+
+    #[inline]
+    fn transform_quad(&mut self, quad: T) -> T {
+        quad
+    }
+
+    #[inline]
+    fn into_single_transformer(self) -> Self::SingleTransformer {
+        IdentityTransformer
+    }
+}
+
+impl EncodeSingleTransformer for IdentityTransformer {
+    #[inline]
+    fn transform(&mut self, num: u32) -> u32 {
+        num
+    }
 }
 
 /// Encode the `input` slice into the `output` slice.
@@ -34,6 +80,13 @@ pub trait Encoder {
 ///
 /// Returns the number of bytes written to the `output` slice.
 pub fn encode<E: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
+    encode_transformed::<E>(input, output)
+}
+
+fn encode_transformed<E>(input: &[u32], output: &mut [u8]) -> usize
+where
+    E: Encoder,
+{
     if input.len() == 0 {
         return 0;
     }
@@ -51,7 +104,7 @@ pub fn encode<E: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
     // may be some input left, use Scalar to finish it
     let control_bytes_written = nums_encoded / 4;
 
-    let (more_nums_encoded, more_bytes_written) = Scalar::encode_quads(
+    let (more_nums_encoded, more_bytes_written) = ::scalar::do_encode_quads(
         &input[nums_encoded..],
         &mut control_bytes[control_bytes_written..shape.complete_control_bytes_len],
         &mut encoded_bytes[num_bytes_written..],
@@ -70,6 +123,7 @@ pub fn encode<E: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
         let mut nums_encoded = shape.complete_control_bytes_len * 4;
 
         for i in 0..shape.leftover_numbers {
+            // TODO apply transformer
             let num = input[nums_encoded];
             let len = encode_num_scalar(num, &mut encoded_bytes[num_bytes_written..]);
 

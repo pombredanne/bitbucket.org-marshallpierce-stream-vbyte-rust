@@ -38,6 +38,8 @@ const SUM: u32 = 1 | 1 << 8 | 1 << 16 | 1 << 24;
 const AGGREGATORS: [u32; 4] = [CONCAT, SUM, 0, 0];
 
 impl Encoder for Sse41 {
+    type EncodedQuad = m128i;
+
     fn encode_quads(input: &[u32], control_bytes: &mut [u8], output: &mut [u8]) -> (usize, usize) {
         let mut nums_encoded: usize = 0;
         let mut bytes_encoded: usize = 0;
@@ -56,6 +58,7 @@ impl Encoder for Sse41 {
         let control_byte_limit = control_bytes.len().saturating_sub(3);
 
         for control_byte in &mut control_bytes[0..control_byte_limit].iter_mut() {
+            // TODO apply transformer
             let to_encode = unsafe {
                 sse2::mm_loadu_si128(input[nums_encoded..(nums_encoded + 4)].as_ptr()
                     as *const m128i)
@@ -129,8 +132,8 @@ impl Encoder for Sse41 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ::*;
+    use super::*;
 
     #[test]
     fn encodes_all_but_last_3_control_bytes() {
