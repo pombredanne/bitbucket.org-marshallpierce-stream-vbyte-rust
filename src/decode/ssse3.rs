@@ -5,7 +5,7 @@ use std::cmp;
 use self::x86intrin::{m128i, sse2, ssse3};
 
 use {tables, SliceDecodeSink};
-use decode::{DecodeQuadSink, Decoder};
+use super::{DecodeQuadSink, Decoder};
 
 /// Decoder using SSSE3 instructions.
 pub struct Ssse3;

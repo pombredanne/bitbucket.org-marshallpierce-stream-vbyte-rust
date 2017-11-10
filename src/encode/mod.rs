@@ -5,6 +5,9 @@ use byteorder::{ByteOrder, LittleEndian};
 use encoded_shape;
 use scalar::Scalar;
 
+#[cfg(feature = "x86_sse41")]
+pub mod sse41;
+
 /// Encode numbers to bytes.
 pub trait Encoder {
     /// Encode complete quads of input numbers.

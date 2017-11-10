@@ -110,34 +110,14 @@ mod tables;
 mod scalar;
 pub use scalar::Scalar;
 
-#[path = "x86/x86.rs"]
 pub mod x86;
 
 mod encode;
 pub use encode::{encode, Encoder};
 
 mod decode;
-pub use decode::{decode, DecodeQuadSink, DecodeSingleSink, Decoder};
+pub use decode::{decode, DecodeQuadSink, DecodeSingleSink, Decoder, SliceDecodeSink};
 pub use decode::cursor::DecodeCursor;
-
-/// A sink for writing to a slice.
-///
-/// Has to be public because it's in trait bounds on `decode()`.
-/// Has to be at the top level so that submodules can access non-public fields.
-#[doc(hidden)]
-pub struct SliceDecodeSink<'a> {
-    output: &'a mut [u32],
-}
-
-impl<'a> SliceDecodeSink<'a> {
-    /// Create a new sink that wraps a slice.
-    ///
-    /// `output` must be at least as big as the
-    fn new(output: &'a mut [u32]) -> SliceDecodeSink<'a> {
-        SliceDecodeSink { output }
-    }
-}
-
 
 #[derive(Debug, PartialEq)]
 struct EncodedShape {

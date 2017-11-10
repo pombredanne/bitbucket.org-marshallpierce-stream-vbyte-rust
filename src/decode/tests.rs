@@ -2,7 +2,7 @@ extern crate rand;
 
 use self::rand::Rng;
 
-use {cumulative_encoded_len, encode, Scalar, x86};
+use {cumulative_encoded_len, encode, Scalar};
 
 use super::*;
 
@@ -65,7 +65,7 @@ fn decoder_honors_nums_to_decode_scalar() {
 fn decoder_honors_nums_to_decode_ssse3() {
     // Sse3 reads 16 bytes at a time, so it cannot handle the last 3 control bytes in case their
     // encoded nums are <16 bytes
-    decoder_honors_nums_to_decode::<x86::Ssse3>(3);
+    decoder_honors_nums_to_decode::<::x86::Ssse3>(3);
 }
 
 fn decoder_honors_nums_to_decode<D: Decoder>(control_byte_limit_fudge_factor: usize)

@@ -1,8 +1,9 @@
 use byteorder::{ByteOrder, LittleEndian};
 
-use {SliceDecodeSink};
-
 pub mod cursor;
+
+#[cfg(feature = "x86_ssse3")]
+pub mod ssse3;
 
 #[cfg(test)]
 mod tests;
@@ -66,6 +67,23 @@ impl<'a> DecodeSingleSink for SliceDecodeSink<'a> {
     }
 }
 
+/// A sink for writing to a slice.
+///
+/// Has to be public because it's in trait bounds on `decode()`.
+#[doc(hidden)]
+pub struct SliceDecodeSink<'a> {
+    output: &'a mut [u32],
+}
+
+impl<'a> SliceDecodeSink<'a> {
+    /// Create a new sink that wraps a slice.
+    ///
+    /// `output` must be at least as big as the
+    fn new(output: &'a mut [u32]) -> SliceDecodeSink<'a> {
+        SliceDecodeSink { output }
+    }
+}
+
 /// Decode `count` numbers from `input`, writing them to `output`.
 ///
 /// The `count` must be the same as the number of items originally encoded.
@@ -95,4 +113,3 @@ pub fn decode_num_scalar(len: usize, input: &[u8]) -> u32 {
 
     LittleEndian::read_u32(&buf)
 }
-
