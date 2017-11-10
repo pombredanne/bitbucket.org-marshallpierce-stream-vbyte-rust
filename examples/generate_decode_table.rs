@@ -75,12 +75,7 @@ fn main() {
         assert_eq!(16, shuffle_bytes.len());
 
         println!(
-            "    [{}], // {} = 0x{:X} = 0b{:08b}, lengths {} {} {} {}",
-            shuffle_bytes
-                .iter()
-                .map(|b| format!("{:4 }", b))
-                .collect::<Vec<String>>()
-                .join(", "),
+            "    // {} = 0x{:X} = 0b{:08b}, lengths {} {} {} {}",
             byte,
             byte,
             byte,
@@ -88,6 +83,14 @@ fn main() {
             len1,
             len2,
             len3
+        );
+        println!(
+            "    [{}],",
+            shuffle_bytes
+                .iter()
+                .map(|b| format!("{:4 }", b))
+                .collect::<Vec<String>>()
+                .join(","),
         );
     }
 
@@ -116,12 +119,7 @@ fn main() {
         assert_eq!(16, shuffle_bytes.len());
 
         println!(
-            "    [{}], // {} = 0x{:X} = 0b{:08b}, lengths {} {} {} {}",
-            shuffle_bytes
-                .iter()
-                .map(|b| format!("{:4 }", b))
-                .collect::<Vec<String>>()
-                .join(", "),
+            "    // {} = 0x{:X} = 0b{:08b}, lengths {} {} {} {}",
             byte,
             byte,
             byte,
@@ -129,6 +127,14 @@ fn main() {
             len1,
             len2,
             len3
+        );
+        println!(
+            "    [{}],",
+            shuffle_bytes
+                .iter()
+                .map(|b| format!("{:4 }", b))
+                .collect::<Vec<String>>()
+                .join(","),
         );
     }
 

@@ -4,7 +4,8 @@ use {tables, SliceDecodeSink};
 use decode::{decode_num_scalar, DecodeQuadSink, Decoder};
 use encode::{encode_num_scalar, Encoder};
 
-/// Encoder/Decoder that works on every platform, at the cost of speed compared to the SIMD accelerated versions.
+/// Encoder/Decoder that works on every platform, at the cost of speed compared to the SIMD
+/// accelerated versions.
 pub struct Scalar;
 
 impl Encoder for Scalar {

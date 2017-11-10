@@ -125,7 +125,7 @@ impl Encoder for Sse41 {
 
         (nums_encoded, bytes_encoded)
     }
-    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -22,8 +22,8 @@ pub trait Decoder {
     /// `max_control_bytes_to_decode` may be greater than the number of control bytes remaining, in
     /// which case only the remaining control bytes will be decoded.
     ///
-    /// Implementations may decode at most `max_control_bytes_to_decode` control bytes, but may decode
-    /// fewer.
+    /// Implementations may decode at most `max_control_bytes_to_decode` control bytes, but may
+    /// decode fewer.
     ///
     /// `nums_already_decoded` is the number of numbers that have already been decoded in the
     /// `DecodeCursor.decode` invocation.

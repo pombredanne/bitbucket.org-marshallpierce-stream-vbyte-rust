@@ -26,8 +26,8 @@ impl Decoder for Ssse3 {
         // Decoding reads 16 bytes at a time from input, so we won't be able to read the last few
         // control byte's worth because they may be encoded at 1 byte per number, so we need 3
         // additional control bytes' worth of numbers to provide the extra 12 bytes.
-        // However, if control_bytes_to_decode is short enough, we can decode all the requested numbers
-        // because we'll have un-processed input to ensure we can read 16 bytes.
+        // However, if control_bytes_to_decode is short enough, we can decode all the requested
+        // numbers because we'll have un-processed input to ensure we can read 16 bytes.
         let control_byte_limit = cmp::min(
             control_bytes_to_decode,
             control_bytes.len().saturating_sub(3),

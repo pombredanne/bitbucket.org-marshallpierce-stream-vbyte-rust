@@ -194,8 +194,8 @@ impl<'a> DecodeCursor<'a> {
         }
 
         {
-            // handle any remaining full quads if the provided Decoder did not consume all the control
-            // bytes
+            // handle any remaining full quads if the provided Decoder did not consume all the
+            // control bytes
             let (more_nums_decoded, more_bytes_read) = Scalar::decode_quads(
                 &self.control_bytes
                     [self.control_bytes_read..self.encoded_shape.complete_control_bytes_len],
