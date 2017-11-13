@@ -17,6 +17,8 @@ pub trait Encoder {
     ///
     /// Control bytes are written to `control_bytes` and encoded numbers to `output`.
     ///
+    /// The provided `transformer` will be used on all input numbers prior to encoding.
+    ///
     /// Implementations may choose to encode fewer than the full provided input, but any writes done
     /// must be for full quads.
     ///
@@ -25,10 +27,16 @@ pub trait Encoder {
     ///
     /// Returns the number of numbers encoded, the number of bytes written to `output`, and the
     /// `EncodeSingleTransformer` to use for the rest of the input.
-    fn encode_quads(input: &[u32], control_bytes: &mut [u8], output: &mut [u8]) -> (usize, usize);
+    fn encode_quads<T: EncodeQuadTransformer<Self::EncodedQuad>>(
+        input: &[u32],
+        control_bytes: &mut [u8],
+        output: &mut [u8],
+    ) -> (usize, usize);
 }
 
 /// Transform numbers at encode time.
+///
+/// These are intended to be single-use: one transformer for each complete input.
 ///
 /// This is not meant to be implemented exernally, but must be public because it is used in
 /// `Encoder`.
@@ -80,12 +88,13 @@ impl EncodeSingleTransformer for IdentityTransformer {
 ///
 /// Returns the number of bytes written to the `output` slice.
 pub fn encode<E: Encoder>(input: &[u32], output: &mut [u8]) -> usize {
-    encode_transformed::<E>(input, output)
+    encode_transformed::<E, IdentityTransformer>(input, output)
 }
 
-fn encode_transformed<E>(input: &[u32], output: &mut [u8]) -> usize
+fn encode_transformed<E, T>(input: &[u32], output: &mut [u8]) -> usize
 where
     E: Encoder,
+    T: EncodeQuadTransformer<E::EncodedQuad>,
 {
     if input.len() == 0 {
         return 0;
@@ -95,7 +104,7 @@ where
 
     let (control_bytes, encoded_bytes) = output.split_at_mut(shape.control_bytes_len);
 
-    let (nums_encoded, mut num_bytes_written) = E::encode_quads(
+    let (nums_encoded, mut num_bytes_written) = E::encode_quads::<IdentityTransformer>(
         &input[..],
         &mut control_bytes[0..shape.complete_control_bytes_len],
         &mut encoded_bytes[..],
