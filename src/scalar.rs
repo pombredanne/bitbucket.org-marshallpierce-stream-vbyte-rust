@@ -82,7 +82,6 @@ impl<'a> DecodeQuadSink<()> for SliceDecodeSink<'a> {
 
 /// Helper for encoding that doesn't take a EncodeQuadTransformer since scalar encoding can only use
 /// a EncodeSingleTransformer
-#[inline]
 pub fn do_encode_quads(
     input: &[u32],
     control_bytes: &mut [u8],
