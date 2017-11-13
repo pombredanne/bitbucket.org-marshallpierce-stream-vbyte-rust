@@ -4,7 +4,7 @@ use self::x86intrin::{m128i, sse2, sse41, ssse3};
 
 use tables;
 
-use super::Encoder;
+use super::{Encoder, EncodeQuadTransformer};
 
 /// Encoder using SSE4.1 instructions.
 pub struct Sse41;
@@ -40,7 +40,12 @@ const AGGREGATORS: [u32; 4] = [CONCAT, SUM, 0, 0];
 impl Encoder for Sse41 {
     type EncodedQuad = m128i;
 
-    fn encode_quads(input: &[u32], control_bytes: &mut [u8], output: &mut [u8]) -> (usize, usize) {
+    fn encode_quads<T: EncodeQuadTransformer<Self::EncodedQuad>>(
+        input: &[u32],
+        control_bytes: &mut [u8],
+        output: &mut [u8],
+        _transformer: T,
+    ) -> (usize, usize) {
         let mut nums_encoded: usize = 0;
         let mut bytes_encoded: usize = 0;
 
@@ -134,6 +139,7 @@ impl Encoder for Sse41 {
 mod tests {
     use ::*;
     use super::*;
+    use encode::IdentityTransformer;
 
     #[test]
     fn encodes_all_but_last_3_control_bytes() {
@@ -151,7 +157,7 @@ mod tests {
             let (nums_encoded, bytes_written) = {
                 let (control_bytes, num_bytes) = encoded.split_at_mut(control_bytes_len);
 
-                Sse41::encode_quads(&nums[0..4 * control_bytes_len], control_bytes, num_bytes)
+                Sse41::encode_quads(&nums[0..4 * control_bytes_len], control_bytes, num_bytes, IdentityTransformer)
             };
 
             let control_bytes_written = nums_encoded / 4;

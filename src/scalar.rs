@@ -2,7 +2,7 @@ use std::cmp;
 
 use {tables, SliceDecodeSink};
 use decode::{decode_num_scalar, DecodeQuadSink, Decoder};
-use encode::{encode_num_scalar, Encoder};
+use encode::{encode_num_scalar, Encoder, EncodeQuadTransformer};
 
 /// Encoder/Decoder that works on every platform, at the cost of speed compared to the SIMD
 /// accelerated versions.
@@ -12,10 +12,11 @@ impl Encoder for Scalar {
     type EncodedQuad = ();
 
     // This implementation encodes all provided input numbers.
-    fn encode_quads(
+    fn encode_quads<T: EncodeQuadTransformer<Self::EncodedQuad>>(
         input: &[u32],
         control_bytes: &mut [u8],
         encoded_nums: &mut [u8],
+        _transformer: T,
     ) -> (usize, usize) {
         let (nums_encoded, bytes_written) = do_encode_quads(input, control_bytes, encoded_nums);
 
