@@ -2,7 +2,8 @@ use std::cmp;
 
 use {tables, SliceDecodeSink};
 use decode::{decode_num_scalar, DecodeQuadSink, Decoder};
-use encode::{encode_num_scalar, Encoder, EncodeQuadTransformer};
+use encode::{encode_num_scalar, EncodeQuadTransformer, EncodeSingleTransformer, Encoder,
+             IdentityTransformer};
 
 /// Encoder/Decoder that works on every platform, at the cost of speed compared to the SIMD
 /// accelerated versions.
@@ -18,7 +19,8 @@ impl Encoder for Scalar {
         encoded_nums: &mut [u8],
         _transformer: T,
     ) -> (usize, usize) {
-        let (nums_encoded, bytes_written) = do_encode_quads(input, control_bytes, encoded_nums);
+        let (nums_encoded, bytes_written) =
+            do_encode_quads::<IdentityTransformer>(input, control_bytes, encoded_nums);
 
         (nums_encoded, bytes_written)
     }
@@ -82,7 +84,7 @@ impl<'a> DecodeQuadSink<()> for SliceDecodeSink<'a> {
 
 /// Helper for encoding that doesn't take a EncodeQuadTransformer since scalar encoding can only use
 /// a EncodeSingleTransformer
-pub fn do_encode_quads(
+pub fn do_encode_quads<S: EncodeSingleTransformer>(
     input: &[u32],
     control_bytes: &mut [u8],
     encoded_nums: &mut [u8],

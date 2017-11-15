@@ -4,7 +4,7 @@ use self::x86intrin::{m128i, sse2, sse41, ssse3};
 
 use tables;
 
-use super::{Encoder, EncodeQuadTransformer};
+use super::{EncodeQuadTransformer, Encoder};
 
 /// Encoder using SSE4.1 instructions.
 pub struct Sse41;
@@ -157,7 +157,12 @@ mod tests {
             let (nums_encoded, bytes_written) = {
                 let (control_bytes, num_bytes) = encoded.split_at_mut(control_bytes_len);
 
-                Sse41::encode_quads(&nums[0..4 * control_bytes_len], control_bytes, num_bytes, IdentityTransformer)
+                Sse41::encode_quads(
+                    &nums[0..4 * control_bytes_len],
+                    control_bytes,
+                    num_bytes,
+                    IdentityTransformer,
+                )
             };
 
             let control_bytes_written = nums_encoded / 4;

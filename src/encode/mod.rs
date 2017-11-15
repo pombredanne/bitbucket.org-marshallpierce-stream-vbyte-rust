@@ -115,11 +115,12 @@ where
     // may be some input left, use Scalar to finish it
     let control_bytes_written = nums_encoded / 4;
 
-    let (more_nums_encoded, more_bytes_written) = ::scalar::do_encode_quads(
-        &input[nums_encoded..],
-        &mut control_bytes[control_bytes_written..shape.complete_control_bytes_len],
-        &mut encoded_bytes[num_bytes_written..],
-    );
+    let (more_nums_encoded, more_bytes_written) =
+        ::scalar::do_encode_quads::<IdentityTransformer>(
+            &input[nums_encoded..],
+            &mut control_bytes[control_bytes_written..shape.complete_control_bytes_len],
+            &mut encoded_bytes[num_bytes_written..],
+        );
 
     num_bytes_written += more_bytes_written;
 
