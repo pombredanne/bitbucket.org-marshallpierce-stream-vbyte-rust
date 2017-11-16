@@ -19,7 +19,8 @@
 //! If you can use nightly Rust (currently needed for SIMD) and you know which hardware you'll be
 //! running on, or you can add runtime detection of CPU features, you can choose to use an
 //! implementation that takes advantage of your hardware. Something like
-//! [raw-cpuid](https://crates.io/crates/raw-cpuid) will probably be useful for runtime detection.
+//! [raw-cpuid](https://crates.io/crates/raw-cpuid) or [auxv](https://crates.io/crates/auxv) will
+//! probably be useful for runtime CPU feature detection.
 //!
 //! Performance numbers are calculated on an E5-1650v3 on encoding/decoding 1 million random numbers
 //! at a time. You can run the benchmarks yourself to see how your hardware does.
