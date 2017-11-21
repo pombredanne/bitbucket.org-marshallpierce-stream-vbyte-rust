@@ -1,8 +1,9 @@
-extern crate x86intrin;
+extern crate stdsimd;
 
 use std::cmp;
 
-use self::x86intrin::{m128i, sse2, ssse3};
+use self::stdsimd::simd;
+use self::stdsimd::vendor::{__m128i, _mm_loadu_si128, _mm_shuffle_epi8, _mm_storeu_si128};
 
 use {tables, SliceDecodeSink};
 use super::{DecodeQuadSink, Decoder};
@@ -11,7 +12,7 @@ use super::{DecodeQuadSink, Decoder};
 pub struct Ssse3;
 
 impl Decoder for Ssse3 {
-    type DecodedQuad = m128i;
+    type DecodedQuad = simd::u8x16;
 
     fn decode_quads<S: DecodeQuadSink<Self::DecodedQuad>>(
         control_bytes: &[u8],
@@ -47,11 +48,11 @@ impl Decoder for Ssse3 {
             unsafe {
                 // TODO load mask unaligned once https://github.com/rust-lang/rust/issues/33626
                 // hits stable
-                mask = sse2::mm_loadu_si128(mask_bytes.as_ptr() as *const m128i);
-                data = sse2::mm_loadu_si128(next_4.as_ptr() as *const m128i);
+                mask = simd::u8x16::from(_mm_loadu_si128(mask_bytes.as_ptr() as *const __m128i));
+                data = simd::u8x16::from(_mm_loadu_si128(next_4.as_ptr() as *const __m128i));
             }
 
-            let decompressed = ssse3::mm_shuffle_epi8(data, mask);
+            let decompressed = unsafe { _mm_shuffle_epi8(data, mask) };
 
             sink.on_quad(decompressed, nums_decoded);
 
@@ -64,14 +65,14 @@ impl Decoder for Ssse3 {
 }
 
 /// Used for SSSE3 decoding.
-impl<'a> DecodeQuadSink<m128i> for SliceDecodeSink<'a> {
+impl<'a> DecodeQuadSink<simd::u8x16> for SliceDecodeSink<'a> {
     #[inline]
-    fn on_quad(&mut self, quad: m128i, nums_decoded: usize) {
+    fn on_quad(&mut self, quad: simd::u8x16, nums_decoded: usize) {
         unsafe {
             // using slice size to make sure it's ok to write 4 u32s
-            sse2::mm_storeu_si128(
-                self.output[nums_decoded..(nums_decoded + 4)].as_ptr() as *mut m128i,
-                quad,
+            _mm_storeu_si128(
+                self.output[nums_decoded..(nums_decoded + 4)].as_ptr() as *mut __m128i,
+                simd::i8x16::from(quad),
             )
         }
     }

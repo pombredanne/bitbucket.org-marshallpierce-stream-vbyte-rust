@@ -5,7 +5,7 @@ extern crate stream_vbyte;
 extern crate test;
 
 #[cfg(feature = "x86_ssse3")]
-extern crate x86intrin;
+extern crate stdsimd;
 
 use self::test::Bencher;
 
@@ -344,6 +344,6 @@ impl DecodeQuadSink<()> for NoOpSink {
 }
 
 #[cfg(feature = "x86_ssse3")]
-impl DecodeQuadSink<x86intrin::m128i> for NoOpSink {
-    fn on_quad(&mut self, _quad: x86intrin::m128i, _nums_decoded: usize) {}
+impl DecodeQuadSink<stdsimd::simd::u8x16> for NoOpSink {
+    fn on_quad(&mut self, _quad: stdsimd::simd::u8x16, _nums_decoded: usize) {}
 }

@@ -2,7 +2,7 @@ extern crate rand;
 extern crate stream_vbyte;
 
 #[cfg(feature = "x86_ssse3")]
-extern crate x86intrin;
+extern crate stdsimd;
 
 use std::cmp;
 
@@ -743,9 +743,9 @@ impl DecodeQuadSink<()> for TupleSink {
 }
 
 #[cfg(feature = "x86_ssse3")]
-impl DecodeQuadSink<x86intrin::m128i> for TupleSink {
-    fn on_quad(&mut self, quad: x86intrin::m128i, nums_decoded: usize) {
-        let u32s = quad.as_u32x4();
+impl DecodeQuadSink<stdsimd::simd::u8x16> for TupleSink {
+    fn on_quad(&mut self, quad: stdsimd::simd::u8x16, nums_decoded: usize) {
+        let u32s = stdsimd::simd::u32x4::from(quad);
         self.tuples.push((nums_decoded, u32s.extract(0)));
         self.tuples.push((nums_decoded + 1, u32s.extract(1)));
         self.tuples.push((nums_decoded + 2, u32s.extract(2)));

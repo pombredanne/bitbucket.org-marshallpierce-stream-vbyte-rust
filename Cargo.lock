@@ -111,13 +111,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "stdsimd"
+version = "0.0.3"
+source = "git+https://github.com/rust-lang-nursery/stdsimd.git?rev=eb6b92f0564cd23c0a36776f1bcb8c1667922db3#eb6b92f0564cd23c0a36776f1bcb8c1667922db3"
+
+[[package]]
 name = "stream-vbyte"
 version = "0.3.2"
 dependencies = [
  "byteorder 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.26.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
- "x86intrin 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stdsimd 0.0.3 (git+https://github.com/rust-lang-nursery/stdsimd.git?rev=eb6b92f0564cd23c0a36776f1bcb8c1667922db3)",
 ]
 
 [[package]]
@@ -174,11 +179,6 @@ name = "winapi-build"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
-[[package]]
-name = "x86intrin"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-
 [metadata]
 "checksum ansi_term 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "23ac7c30002a5accbf7e8987d0632fa6de155b7c3d39d0067317a391e00a2ef6"
 "checksum atty 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "21e50800ec991574876040fff8ee46b136a53e985286fbe6a3bdfe6421b78860"
@@ -195,6 +195,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum rand 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)" = "eb250fd207a4729c976794d03db689c9be1d634ab5a1c9da9492a13d8fecbcdf"
 "checksum redox_syscall 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)" = "8dde11f18c108289bef24469638a04dce49da56084f2d50618b226e47eb04509"
 "checksum redox_termios 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7e891cfe48e9100a70a3b6eb652fef28920c117d366339687bd5576160db0f76"
+"checksum stdsimd 0.0.3 (git+https://github.com/rust-lang-nursery/stdsimd.git?rev=eb6b92f0564cd23c0a36776f1bcb8c1667922db3)" = "<none>"
 "checksum strsim 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b4d15c810519a91cf877e7e36e63fe068815c678181439f2f29e2562147c3694"
 "checksum term_size 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e2b6b55df3198cc93372e85dd2ed817f0e38ce8cc0f22eb32391bfad9c4bf209"
 "checksum termion 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "689a3bdfaab439fd92bc87df5c4c78417d3cbe537487274e9b0b2dce76e92096"
@@ -203,4 +204,3 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum vec_map 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "887b5b631c2ad01628bbbaa7dd4c869f80d3186688f8d0b6f58774fbe324988c"
 "checksum winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)" = "167dc9d6949a9b857f3451275e911c3f44255842c1f7a76f33c55103a909087a"
 "checksum winapi-build 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2d315eee3b34aca4797b2da6b13ed88266e6d612562a0c46390af8299fc699bc"
-"checksum x86intrin 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "5f65e7a74c19065448f1f36de5100f947c9309244c084ded5594ddf6d588706d"

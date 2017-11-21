@@ -1,6 +1,8 @@
-extern crate x86intrin;
+extern crate stdsimd;
 
-use self::x86intrin::{m128i, sse2, sse41, ssse3};
+use self::stdsimd::simd;
+use self::stdsimd::vendor::{__m128i, _mm_loadu_si128, _mm_min_epu8, _mm_mullo_epi32,
+                            _mm_shuffle_epi8, _mm_storeu_si128};
 
 use tables;
 
@@ -44,11 +46,19 @@ impl Encoder for Sse41 {
 
         // TODO these load unaligned once https://github.com/rust-lang/rust/issues/33626
         // hits stable
-        let ones = unsafe { sse2::mm_loadu_si128(ONES.as_ptr() as *const m128i) };
-        let shifts = unsafe { sse2::mm_loadu_si128(SHIFTS.as_ptr() as *const m128i) };
-        let lanecodes = unsafe { sse2::mm_loadu_si128(LANECODES.as_ptr() as *const m128i) };
-        let gather_hi = unsafe { sse2::mm_loadu_si128(GATHER_HI.as_ptr() as *const m128i) };
-        let aggregators = unsafe { sse2::mm_loadu_si128(AGGREGATORS.as_ptr() as *const m128i) };
+        let ones = simd::u8x16::from(unsafe { _mm_loadu_si128(ONES.as_ptr() as *const __m128i) });
+        let shifts = simd::i32x4::from(unsafe {
+            _mm_loadu_si128(SHIFTS.as_ptr() as *const __m128i)
+        });
+        let lanecodes = simd::u8x16::from(unsafe {
+            _mm_loadu_si128(LANECODES.as_ptr() as *const __m128i)
+        });
+        let gather_hi = simd::u8x16::from(unsafe {
+            _mm_loadu_si128(GATHER_HI.as_ptr() as *const __m128i)
+        });
+        let aggregators = simd::i32x4::from(unsafe {
+            _mm_loadu_si128(AGGREGATORS.as_ptr() as *const __m128i)
+        });
 
         // Encoding writes 16 bytes at a time, but if numbers are encoded with 1 byte each, that
         // means the last 3 quads could write past what is actually necessary. So, don't process
@@ -56,13 +66,13 @@ impl Encoder for Sse41 {
         let control_byte_limit = control_bytes.len().saturating_sub(3);
 
         for control_byte in &mut control_bytes[0..control_byte_limit].iter_mut() {
-            let to_encode = unsafe {
-                sse2::mm_loadu_si128(input[nums_encoded..(nums_encoded + 4)].as_ptr()
-                    as *const m128i)
-            };
+            let to_encode = simd::u8x16::from(unsafe {
+                _mm_loadu_si128(input[nums_encoded..(nums_encoded + 4)].as_ptr()
+                    as *const __m128i)
+            });
 
             // clamp each byte to 1 if nonzero
-            let mins = sse2::mm_min_epu8(to_encode, ones);
+            let mins = simd::i32x4::from(unsafe { _mm_min_epu8(to_encode, ones) });
 
             // Apply shifts to clamped bytes. e.g. u32::max_value() would be (little endian):
             // 00000001 00000001 00000001 00000001
@@ -87,33 +97,36 @@ impl Encoder for Sse41 {
             // 2-byte -> 0x04
             // 3-byte -> 0x02, 0x06
             // 4-byte -> 0x01, 0x05, 0x03, 0x07
-            let bytemaps = sse41::mm_mullo_epi32(mins, shifts);
+            let bytemaps = simd::u8x16::from(unsafe { _mm_mullo_epi32(mins, shifts) });
 
             // Map high bytes to the corresponding lane codes. (Other bytes are mapped as well
             // but are not used.)
-            let shuffled_lanecodes = ssse3::mm_shuffle_epi8(lanecodes, bytemaps);
+            let shuffled_lanecodes = unsafe { _mm_shuffle_epi8(lanecodes, bytemaps) };
 
             // Assemble 2 copies of the high byte from each of the 4 numbers.
             // The first copy will be used to calculate the control byte, the second the length.
-            let hi_bytes = ssse3::mm_shuffle_epi8(shuffled_lanecodes, gather_hi);
+            let hi_bytes =
+                simd::i32x4::from(unsafe { _mm_shuffle_epi8(shuffled_lanecodes, gather_hi) });
 
             // use CONCAT to shift the lane code bits from bytes 0-3 into 1 byte (byte 3)
             // use SUM to sum lane code bits from bytes 4-7 into 1 byte (byte 7)
-            let code_and_length = sse41::mm_mullo_epi32(hi_bytes, aggregators);
+            let code_and_length = unsafe { _mm_mullo_epi32(hi_bytes, aggregators) };
 
-            let bytes = code_and_length.as_u8x16();
+            let bytes = simd::u8x16::from(code_and_length);
             let code = bytes.extract(3);
             let length = bytes.extract(7) + 4;
 
             let mask_bytes = tables::X86_ENCODE_SHUFFLE_TABLE[code as usize];
-            let encode_mask = unsafe { sse2::mm_loadu_si128(mask_bytes.as_ptr() as *const m128i) };
+            let encode_mask = simd::u8x16::from(unsafe {
+                _mm_loadu_si128(mask_bytes.as_ptr() as *const __m128i)
+            });
 
-            let encoded = ssse3::mm_shuffle_epi8(to_encode, encode_mask);
+            let encoded = unsafe { _mm_shuffle_epi8(to_encode, encode_mask) };
 
             unsafe {
-                sse2::mm_storeu_si128(
-                    output[bytes_encoded..(bytes_encoded + 16)].as_ptr() as *mut m128i,
-                    encoded,
+                _mm_storeu_si128(
+                    output[bytes_encoded..(bytes_encoded + 16)].as_ptr() as *mut __m128i,
+                    simd::i8x16::from(encoded),
                 );
             }
 
